@@ -33,8 +33,8 @@ async def upload_resume(request: Request, file: UploadFile, db: AsyncSession = D
 
     try:
         text = extract_text_from_pdf(content)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to extract PDF text")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to extract PDF text")
 
     resume = Resume(
         user_id=user_id,
@@ -67,6 +67,23 @@ async def save_openrouter_key(request: Request, db: AsyncSession = Depends(get_d
     user.openrouter_api_key = encrypt(api_key)
     await db.commit()
     return {"message": "API key saved"}
+
+
+@router.get("/key-status")
+async def key_status(request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = get_session_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    from app.config import settings
+    env_configured = bool(settings.openrouter_api_key) or bool(settings.openrouter_key)
+    has_key = bool(user.openrouter_api_key) or env_configured
+    return {"has_key": has_key, "env_configured": env_configured}
 
 
 @router.get("/resumes")

@@ -18,6 +18,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.create_table(
         "users",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
@@ -75,3 +76,4 @@ def downgrade() -> None:
     op.drop_table("repositories")
     op.drop_table("resumes")
     op.drop_table("users")
+    op.execute("DROP EXTENSION IF EXISTS vector")

@@ -1,4 +1,6 @@
 import uuid
+from asyncio import sleep
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,39 +16,32 @@ from app.skills.jd_parser import JDParserSkill
 from app.skills.project_matcher import ProjectMatcherSkill
 from app.skills.resume_writer import ResumeWriterSkill
 from app.utils.llm import LLMClient
+from app.services.pdf_extractor import extract_sections
 
 
 class Orchestrator:
-    """Master agent that calls skills in sequence and emits SSE events."""
+    """Master agent that calls skills in sequence and yields SSE events in real time."""
 
     def __init__(self, generation_id: uuid.UUID, llm: LLMClient, db: AsyncSession):
         self.generation_id = generation_id
         self.llm = llm
         self.db = db
         self.debug_dir = Path(settings.debug_dir) / str(generation_id)
-        self._event_queue: list[dict] = []
 
-    def pop_events(self) -> list[dict]:
-        events = self._event_queue[:]
-        self._event_queue.clear()
-        return events
-
-    def _emit(self, event: str, data: dict):
-        self._event_queue.append({"event": event, "data": data})
-
-    async def run(self) -> dict:
-        self._emit("step-start", {"step": "jd_parser", "message": "Parsing job description..."})
+    async def run(self) -> AsyncGenerator[dict, None]:
         user = await self._get_user()
         generation = await self._get_generation()
-        resume_text = generation.resume.extracted_text
+        sections = extract_sections(generation.resume.extracted_text)
         repos = await self._get_repos(user)
 
-        jd_req = await JDParserSkill().run(
-            generation.job_description_text, self.llm, debug_dir=self.debug_dir
-        )
-        self._emit("step-done", {"step": "jd_parser", "summary": f"Extracted {len(jd_req.keywords)} keywords, {len(jd_req.hard_requirements)} requirements"})
+        generation.status = "running"
+        await self.db.commit()
 
-        self._emit("step-start", {"step": "project_matcher", "message": "Matching projects to job..."})
+        yield {"event": "step-start", "data": {"step": "jd_parser", "message": "Parsing job description..."}}
+        jd_req = await JDParserSkill().run(generation.job_description_text, self.llm, debug_dir=self.debug_dir)
+        yield {"event": "step-done", "data": {"step": "jd_parser", "summary": f"Extracted {len(jd_req.keywords)} keywords, {len(jd_req.hard_requirements)} requirements"}}
+
+        yield {"event": "step-start", "data": {"step": "project_matcher", "message": "Matching projects to job..."}}
         jd_dict = jd_req.model_dump()
         repo_dicts = [
             {
@@ -60,32 +55,26 @@ class Orchestrator:
             for r in repos
         ]
         ranked = await ProjectMatcherSkill().run(jd_dict, repo_dicts, self.llm, debug_dir=self.debug_dir)
-        self._emit("step-done", {"step": "project_matcher", "summary": f"Ranked {len(ranked)} projects by relevance"})
+        yield {"event": "step-done", "data": {"step": "project_matcher", "summary": f"Ranked {len(ranked)} projects by relevance"}}
 
-        self._emit("step-start", {"step": "resume_writer", "message": "Rewriting resume skills and projects..."})
-        rewritten = await ResumeWriterSkill().run(
-            resume_text, jd_dict, ranked, self.llm, debug_dir=self.debug_dir
-        )
-        self._emit("step-done", {"step": "resume_writer", "summary": "Skills and projects sections rewritten"})
+        yield {"event": "step-start", "data": {"step": "resume_writer", "message": "Rewriting resume skills and projects..."}}
+        rewritten = await ResumeWriterSkill().run(sections["skills"], sections["projects"], jd_dict, ranked, self.llm, debug_dir=self.debug_dir)
+        rewritten_text = f"## Skills\n\n{rewritten['skills']}\n\n## Projects\n\n{rewritten['projects']}"
+        yield {"event": "step-done", "data": {"step": "resume_writer", "summary": "Skills and projects sections rewritten"}}
 
-        self._emit("step-start", {"step": "ats_checker", "message": "Checking ATS compatibility..."})
-        ats_report = await ATSCheckerSkill().run(
-            rewritten, jd_req.keywords, self.llm, debug_dir=self.debug_dir
-        )
-        self._emit("step-done", {"step": "ats_checker", "summary": f"ATS score: {ats_report.get('score', 'N/A')}/100"})
+        yield {"event": "step-start", "data": {"step": "ats_checker", "message": "Checking ATS compatibility..."}}
+        ats_report = await ATSCheckerSkill().run(rewritten_text, jd_req.keywords, self.llm, debug_dir=self.debug_dir)
+        yield {"event": "step-done", "data": {"step": "ats_checker", "summary": f"ATS score: {ats_report.get('score', 'N/A')}/100"}}
 
-        generation.rewritten_resume_text = rewritten
+        generation.rewritten_resume_text = rewritten_text
         generation.ats_report = ats_report
         generation.status = "completed"
         generation.completed_at = datetime.now(timezone.utc)
         generation.skill_chain_debug_path = str(self.debug_dir)
         await self.db.commit()
 
-        self._emit("done", {"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0)})
-        return {
-            "rewritten_resume": rewritten,
-            "ats_report": ats_report,
-        }
+        yield {"event": "output", "data": rewritten_text}
+        yield {"event": "done", "data": {"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0)}}
 
     async def _get_user(self) -> User:
         result = await self.db.execute(

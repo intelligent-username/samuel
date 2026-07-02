@@ -7,7 +7,7 @@ query($username: String!) {
   user(login: $username) {
     repositories(first: 50, orderBy: {field: UPDATED_AT, direction: DESC}, ownerAffiliations: OWNER) {
       nodes {
-        id
+        databaseId
         name
         description
         stargazerCount
@@ -52,6 +52,8 @@ async def fetch_user_repos(access_token: str, username: str) -> list[dict]:
 
 
 def _format_repo(raw: dict) -> dict:
+    from datetime import datetime
+
     languages = {}
     for edge in (raw.get("languages") or {}).get("edges", []):
         languages[edge["node"]["name"]] = edge["size"]
@@ -64,13 +66,21 @@ def _format_repo(raw: dict) -> dict:
     if not readme and raw.get("readmeAlt"):
         readme = raw["readmeAlt"].get("text")
 
+    pushed_at = raw.get("pushedAt")
+    last_push = None
+    if pushed_at:
+        try:
+            last_push = datetime.fromisoformat(pushed_at.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
     return {
-        "github_repo_id": int(raw["id"]),
+        "github_repo_id": raw["databaseId"],
         "name": raw["name"],
         "description": raw.get("description"),
         "stars": raw.get("stargazerCount", 0),
         "languages": languages,
         "readme_text": readme,
         "topics": topics,
-        "last_push": raw.get("pushedAt"),
+        "last_push": last_push,
     }

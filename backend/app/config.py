@@ -9,7 +9,10 @@ class Settings(BaseSettings):
     encryption_key: str = "change-me-in-production"
     log_level: str = "INFO"
     debug_dir: str = "/tmp/samuel/debug"
+    debug_retention_hours: int = 24
     secure_cookie: bool = False
+    openrouter_api_key: str = ""
+    openrouter_key: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

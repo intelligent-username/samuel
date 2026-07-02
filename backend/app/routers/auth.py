@@ -24,7 +24,7 @@ async def login(response: Response):
     response.set_cookie(key="oauth_state", value=state, httponly=True, max_age=600, samesite="lax")
     params = {
         "client_id": settings.github_client_id,
-        "redirect_uri": "http://localhost:3000/auth/callback",
+        "redirect_uri": "http://localhost:1111/auth/callback",
         "scope": "read:user public_repo",
         "state": state,
     }
@@ -49,16 +49,18 @@ async def callback(code: str, state: str, request: Request, response: Response, 
     result = await db.execute(select(User).where(User.github_id == github_user["id"]))
     user = result.scalar_one_or_none()
 
+    from app.services.encryption import encrypt
+
     if user:
-        user.github_access_token = access_token
+        user.github_access_token = encrypt(access_token)
         user.github_username = github_user["login"]
     else:
         user = User(
             github_id=github_user["id"],
             github_username=github_user["login"],
-            github_access_token=access_token,
+            github_access_token=encrypt(access_token),
         )
-        db.add(user)
+    db.add(user)
     await db.commit()
     await db.refresh(user)
 

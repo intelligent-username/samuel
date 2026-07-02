@@ -33,6 +33,7 @@ class RepositoryResponse(BaseModel):
     topics: list[str] | None = None
     last_push: datetime | None = None
     last_fetched_at: datetime
+    readme_text: str | None = None
 
     model_config = {"from_attributes": True}
 
