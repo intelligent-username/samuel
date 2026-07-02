@@ -31,7 +31,7 @@ async def sync_repos(request: Request, db: AsyncSession = Depends(get_db)):
             token = decrypt(user.github_access_token)
         except Exception:
             token = user.github_access_token
-        repos_data = await fetch_user_repos(token, user.github_username)
+        repos_data, avatar_url = await fetch_user_repos(token, user.github_username)
     except Exception as e:
         import logging
         logging.getLogger(__name__).exception("GitHub sync error")
@@ -55,7 +55,7 @@ async def sync_repos(request: Request, db: AsyncSession = Depends(get_db)):
             db.add(repo)
 
     await db.commit()
-    return {"message": f"Synced {len(repos_data)} repositories"}
+    return {"message": f"Synced {len(repos_data)} repositories", "avatar_url": avatar_url}
 
 
 @router.get("/repos")
@@ -65,7 +65,7 @@ async def list_repos(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     result = await db.execute(
-        select(Repository).where(Repository.user_id == user_id).order_by(Repository.created_at.desc())
+        select(Repository).where(Repository.user_id == user_id).order_by(Repository.repo_created_at.desc())
     )
     repos = result.scalars().all()
     return [RepositoryResponse.model_validate(r) for r in repos]

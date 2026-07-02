@@ -70,6 +70,8 @@ services:
             - .next/
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+    volumes:
+      - next_cache:/app/.next
     depends_on:
       backend:
         condition: service_healthy
@@ -83,3 +85,4 @@ services:
 volumes:
   pgdata:
   debug_output:
+  next_cache:

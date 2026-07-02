@@ -28,8 +28,8 @@ export async function logout(): Promise<void> {
   await fetchApi("/auth/logout", { method: "POST" });
 }
 
-export async function syncRepos(): Promise<Repository[]> {
-  return fetchApi<Repository[]>("/github/sync", { method: "POST" });
+export async function syncRepos(): Promise<{ message: string; avatar_url: string | null }> {
+  return fetchApi<{ message: string; avatar_url: string | null }>("/github/sync", { method: "POST" });
 }
 
 export async function listRepos(): Promise<Repository[]> {

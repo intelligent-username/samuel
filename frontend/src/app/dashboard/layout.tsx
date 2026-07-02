@@ -53,8 +53,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isDashboard = pathname.startsWith("/dashboard");
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-background)" }}>
-      {/* Header */}
+    <div style={{ background: "var(--color-background)" }}>
+      {/* Header — hidden on all dashboard routes */}
       {!isDashboard && (
         <header
           style={{
@@ -68,58 +68,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           <div
             className="container"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              height: "60px",
-            }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "60px" }}
           >
-            {/* Brand */}
-            <Link
-              href="/dashboard"
-              style={{ display: "flex", alignItems: "center", gap: "0.6rem", textDecoration: "none" }}
-              className="focus-ring"
-              aria-label="Samuel Resume Rewriter"
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--color-primary)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
+            <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: "0.6rem", textDecoration: "none" }} aria-label="Samuel Resume Rewriter">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
                 <polyline points="14 2 14 8 20 8" />
               </svg>
               <span style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--color-foreground)" }}>Samuel</span>
             </Link>
-
-            {/* Nav links */}
             <nav style={{ display: "flex", gap: "1.5rem" }} aria-label="Main Navigation">
               {navLinks.map((link) => {
                 const isActive = pathname === link.href;
                 return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="focus-ring"
-                    style={{
-                      fontSize: "0.8125rem",
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      textDecoration: "none",
-                      color: isActive ? "var(--color-primary)" : "var(--color-muted-fg)",
-                      transition: "color 0.15s ease",
-                      borderBottom: isActive ? "2px solid var(--color-primary)" : "2px solid transparent",
-                      paddingBlock: "0.25rem",
-                    }}
-                  >
+                  <Link key={link.href} href={link.href} style={{ fontSize: "0.8125rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", textDecoration: "none", color: isActive ? "var(--color-primary)" : "var(--color-muted-fg)", transition: "color 0.15s ease", borderBottom: isActive ? "2px solid var(--color-primary)" : "2px solid transparent", paddingBlock: "0.25rem" }}>
                     {link.label}
                   </Link>
                 );
@@ -130,7 +92,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* Page content */}
-      <main className={isDashboard ? "" : "container"} style={{ paddingBlock: isDashboard ? "0" : "2rem" }}>
+      <main style={{ padding: 0 }}>
         {children}
       </main>
     </div>

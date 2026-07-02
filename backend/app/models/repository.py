@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, Boolean
 from sqlalchemy.dialects.postgresql import ARRAY, JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,5 +26,13 @@ class Repository(TimestampMixin, Base):
     last_push: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     embedding: Mapped[Any | None] = mapped_column(Vector(1536), nullable=True)
     last_fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Extra attributes
+    homepage_url: Mapped[str | None] = mapped_column(String(511), nullable=True)
+    forks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    repo_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    url: Mapped[str | None] = mapped_column(String(511), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="repositories")

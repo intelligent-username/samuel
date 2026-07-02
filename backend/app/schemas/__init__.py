@@ -34,6 +34,12 @@ class RepositoryResponse(BaseModel):
     last_push: datetime | None = None
     last_fetched_at: datetime
     readme_text: str | None = None
+    homepage_url: str | None = None
+    forks: int
+    is_archived: bool
+    is_private: bool
+    repo_created_at: datetime | None = None
+    url: str | None = None
 
     model_config = {"from_attributes": True}
 

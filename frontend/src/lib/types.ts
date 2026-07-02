@@ -13,6 +13,12 @@ export interface Repository {
   topics: string[];
   last_push: string;
   readme_text: string | null;
+  homepage_url: string | null;
+  forks: number;
+  is_archived: boolean;
+  is_private: boolean;
+  repo_created_at: string | null;
+  url: string | null;
 }
 
 export interface Resume {

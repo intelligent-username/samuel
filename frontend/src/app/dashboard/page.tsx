@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
+import remarkFrontmatter from "remark-frontmatter";
 import {
   syncRepos, listRepos, uploadResume, saveApiKey,
   getKeyStatus, listResumes, startGeneration, fetchMe, logout,
@@ -33,11 +37,7 @@ function LangBar({ languages }: { languages: Record<string, number> | null }) {
           <div
             key={lang}
             title={`${lang}: ${((bytes / total) * 100).toFixed(1)}%`}
-            style={{
-              flex: bytes,
-              background: LANG_COLORS[lang] ?? "#888",
-              minWidth: "2px",
-            }}
+            style={{ flex: bytes, background: LANG_COLORS[lang] ?? "#888", minWidth: "2px" }}
           />
         ))}
       </div>
@@ -53,7 +53,7 @@ function LangBar({ languages }: { languages: Record<string, number> | null }) {
   );
 }
 
-// ── Repo detail panel ───────────────────────────────────────────────────────
+// ── Repo detail modal ───────────────────────────────────────────────────────
 function RepoDetail({ repo, onClose }: { repo: Repository; onClose: () => void }) {
   const [tab, setTab] = useState<"overview" | "readme">("overview");
   const total = repo.languages ? Object.values(repo.languages).reduce((a, b) => a + b, 0) : 0;
@@ -62,26 +62,26 @@ function RepoDetail({ repo, onClose }: { repo: Repository; onClose: () => void }
     <div
       style={{
         position: "fixed", inset: 0, zIndex: 1000,
-        background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: "1.5rem",
       }}
       onClick={onClose}
     >
       <div
-        className="nm-card"
-        style={{ maxWidth: "640px", width: "100%", maxHeight: "80vh", overflowY: "auto", position: "relative" }}
+        className="nm-card custom-scrollbar"
+        style={{ maxWidth: "660px", width: "100%", maxHeight: "82vh", overflowY: "auto", position: "relative" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
-          <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+          <div style={{ minWidth: 0 }}>
             <h3 style={{ margin: 0, fontSize: "1rem" }}>{repo.name}</h3>
             {repo.description && (
               <p className="text-muted" style={{ margin: "0.25rem 0 0", fontSize: "0.825rem" }}>{repo.description}</p>
             )}
           </div>
-          <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem", flexShrink: 0 }}>
+          <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem", flexShrink: 0, marginLeft: "1rem" }}>
             ✕
           </button>
         </div>
@@ -93,7 +93,7 @@ function RepoDetail({ repo, onClose }: { repo: Repository; onClose: () => void }
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", borderBottom: "1px solid var(--color-border)", paddingBottom: "0.5rem" }}>
+        <div style={{ display: "flex", gap: "0.4rem", marginBottom: "1rem", borderBottom: "1px solid var(--color-border)", paddingBottom: "0.5rem" }}>
           {(["overview", "readme"] as const).map((t) => (
             <button
               key={t}
@@ -107,13 +107,53 @@ function RepoDetail({ repo, onClose }: { repo: Repository; onClose: () => void }
         </div>
 
         {tab === "overview" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {/* Languages */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            {/* Metadata Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.75rem" }}>
+              <div className="nm-card-sm" style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem" }}>
+                <span className="text-muted" style={{ display: "block", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Forks</span>
+                <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{repo.forks}</span>
+              </div>
+              <div className="nm-card-sm" style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem" }}>
+                <span className="text-muted" style={{ display: "block", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Stars</span>
+                <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{repo.stars}</span>
+              </div>
+              {repo.repo_created_at && (
+                <div className="nm-card-sm" style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem" }}>
+                  <span className="text-muted" style={{ display: "block", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Created</span>
+                  <span style={{ fontWeight: 600, fontSize: "0.82rem" }}>{new Date(repo.repo_created_at).toLocaleDateString()}</span>
+                </div>
+              )}
+              <div className="nm-card-sm" style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem" }}>
+                <span className="text-muted" style={{ display: "block", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Visibility</span>
+                <span style={{ fontWeight: 600, fontSize: "0.82rem" }}>{repo.is_private ? "Private" : "Public"}</span>
+              </div>
+            </div>
+
+            {/* Quick Action Badges / Links */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+              {repo.is_archived && (
+                <span className="chip" style={{ color: "var(--color-destructive)", borderColor: "var(--color-destructive)", background: "transparent", fontSize: "0.7rem", padding: "0.1rem 0.4rem" }}>
+                  Archived
+                </span>
+              )}
+              {repo.url && (
+                <a href={repo.url} target="_blank" rel="noopener noreferrer" className="btn btn-sm" style={{ paddingBlock: "0.2rem 0.5rem", fontSize: "0.72rem" }}>
+                  View GitHub ↗
+                </a>
+              )}
+              {repo.homepage_url && (
+                <a href={repo.homepage_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm" style={{ paddingBlock: "0.2rem 0.5rem", fontSize: "0.72rem" }}>
+                  Homepage ↗
+                </a>
+              )}
+            </div>
+
             {repo.languages && total > 0 && (
               <div>
-                <p style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.4rem", color: "var(--color-muted-fg)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Languages</p>
+                <p style={{ fontSize: "0.72rem", fontWeight: 600, marginBottom: "0.5rem", color: "var(--color-muted-fg)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Languages</p>
                 <LangBar languages={repo.languages} />
-                <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                   {Object.entries(repo.languages).sort((a, b) => b[1] - a[1]).map(([lang, bytes]) => (
                     <div key={lang} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem" }}>
                       <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
@@ -127,10 +167,9 @@ function RepoDetail({ repo, onClose }: { repo: Repository; onClose: () => void }
               </div>
             )}
 
-            {/* Topics */}
             {repo.topics && repo.topics.length > 0 && (
               <div>
-                <p style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.4rem", color: "var(--color-muted-fg)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Topics</p>
+                <p style={{ fontSize: "0.72rem", fontWeight: 600, marginBottom: "0.4rem", color: "var(--color-muted-fg)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Topics</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
                   {repo.topics.map((t) => (
                     <span key={t} className="chip" style={{ fontSize: "0.72rem" }}>#{t}</span>
@@ -142,15 +181,11 @@ function RepoDetail({ repo, onClose }: { repo: Repository; onClose: () => void }
         )}
 
         {tab === "readme" && (
-          <div>
+          <div className="markdown-body" style={{ maxHeight: "440px", overflowY: "auto" }}>
             {repo.readme_text ? (
-              <pre style={{
-                fontFamily: "monospace", fontSize: "0.78rem", lineHeight: 1.6,
-                whiteSpace: "pre-wrap", wordBreak: "break-word",
-                color: "var(--color-muted-fg)", maxHeight: "400px", overflowY: "auto",
-              }}>
-                {repo.readme_text.slice(0, 4000)}{repo.readme_text.length > 4000 ? "\n\n[truncated…]" : ""}
-              </pre>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkFrontmatter]} rehypePlugins={[rehypeSanitize]}>
+                {repo.readme_text}
+              </ReactMarkdown>
             ) : (
               <p className="text-muted" style={{ fontSize: "0.85rem" }}>No README found.</p>
             )}
@@ -166,6 +201,7 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const [repos, setRepos] = useState<Repository[]>([]);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [selectedResumeId, setSelectedResumeId] = useState("");
   const [jobDesc, setJobDesc] = useState("");
@@ -181,12 +217,21 @@ export default function DashboardPage() {
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Avatar derived from GitHub username — publicly available, no auth needed
+  const avatarUrl = username ? `https://github.com/${username}.png?size=40` : null;
+
+  // Filter: hide repos with no language data, and any manually removed
+  const visibleRepos = repos.filter(
+    (r) => !removedIds.has(r.id) &&
+           r.languages && Object.values(r.languages).some((v) => v > 0)
+  );
+
   useEffect(() => {
     Promise.all([
       listRepos(),
       listResumes(),
       getKeyStatus(),
-      fetchMe().catch(() => null)
+      fetchMe().catch(() => null),
     ]).then(([r, res, k, u]) => {
       setRepos(r);
       setResumes(res);
@@ -206,12 +251,18 @@ export default function DashboardPage() {
       await syncRepos();
       const fresh = await listRepos();
       setRepos(fresh);
+      setRemovedIds(new Set()); // sync resets removals
       flash(`Synced ${fresh.length} repositories`, "success");
     } catch (e: any) {
       flash(e.message || "Sync failed", "error");
     } finally {
       setSyncing(false);
     }
+  };
+
+  const handleRemove = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRemovedIds((prev) => new Set([...prev, id]));
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -271,10 +322,27 @@ export default function DashboardPage() {
   const usernameTag = username ? (
     <div className="username-container" style={{ marginLeft: "auto" }}>
       <div className="nm-card-sm" style={{ padding: "0.2rem 0.5rem", display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem", borderRadius: "4px" }}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.6 }}>
-          <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-        </svg>
-        <span>{username}</span>
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            width={14} height={14}
+            style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+            alt=""
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        ) : (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.6, flexShrink: 0 }}>
+            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+          </svg>
+        )}
+        <a
+          href={`https://github.com/${username}?tab=repositories`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "inherit", textDecoration: "none" }}
+        >
+          {username}
+        </a>
       </div>
       <button
         onClick={handleLogout}
@@ -287,7 +355,7 @@ export default function DashboardPage() {
   ) : null;
 
   return (
-    <div className="relative min-h-screen w-full">
+    <div className="page-shell">
       {selectedRepo && <RepoDetail repo={selectedRepo} onClose={() => setSelectedRepo(null)} />}
 
       {/* Left Sidebar */}
@@ -299,14 +367,20 @@ export default function DashboardPage() {
               {syncing && <span className="spinner spinner-sm" />}
               {syncing ? "Syncing..." : "Sync Repos"}
             </button>
-            {repos.length > 0 && <span className="text-muted text-xs">{repos.length} repos cached</span>}
+            {visibleRepos.length > 0 && (
+              <span className="text-muted text-xs">{visibleRepos.length} repos</span>
+            )}
           </div>
 
-          {repos.length > 0 && (
-            <div className="nm-inset custom-scrollbar" style={{ marginTop: "1rem", maxHeight: "320px", overflowY: "auto" }}>
-              {repos.map((r) => (
+          {visibleRepos.length > 0 && (
+            <div
+              className="nm-inset custom-scrollbar repo-list-container"
+              style={{ marginTop: "1rem", maxHeight: "320px", overflowY: "auto" }}
+            >
+              {visibleRepos.map((r) => (
                 <div
                   key={r.id}
+                  className="repo-row"
                   onClick={() => setSelectedRepo(r)}
                   style={{
                     padding: "0.65rem 0.75rem",
@@ -317,9 +391,20 @@ export default function DashboardPage() {
                   onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-muted)")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <span style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--color-foreground)" }}>{r.name}</span>
-                    <span style={{ fontSize: "0.7rem", color: "var(--color-muted-fg)" }}>★ {r.stars}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--color-foreground)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {r.name}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0, marginLeft: "0.5rem" }}>
+                      <span style={{ fontSize: "0.7rem", color: "var(--color-muted-fg)" }}>★ {r.stars}</span>
+                      <button
+                        className="repo-remove-btn"
+                        onClick={(e) => handleRemove(r.id, e)}
+                        title="Remove from catalogue"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                   {r.description && (
                     <p style={{
@@ -371,12 +456,12 @@ export default function DashboardPage() {
 
         {/* Footer */}
         <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Samuel Console</span>
-          <Link href="/dashboard/history" style={{ fontSize: "0.75rem", color: "var(--color-primary)", textDecoration: "underline" }}>View History</Link>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Samuel</span>
+          <Link href="/dashboard/history" style={{ fontSize: "0.75rem", color: "var(--color-primary)", textDecoration: "underline" }}>History</Link>
         </div>
       </aside>
 
-      {/* Main Centered Content */}
+      {/* Main content */}
       <div className="main-layout">
         <h1 style={{ fontSize: "2.5rem", fontWeight: 800, textAlign: "center", marginBottom: "0.5rem", letterSpacing: "-0.025em" }}>
           Resume Personalizer
@@ -385,8 +470,8 @@ export default function DashboardPage() {
           Paste a job description and upload your resume to generate a tailored version.
         </p>
 
-        <div style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr", gap: "2.5rem" }} className="dashboard-grid">
-          {/* Column A: Job Description */}
+        <div style={{ width: "100%" }} className="dashboard-grid">
+          {/* Job Description */}
           <Section title="Job Description">
             <textarea
               id="job-description" rows={12} placeholder="Paste the job description here..."
@@ -398,7 +483,7 @@ export default function DashboardPage() {
             </p>
           </Section>
 
-          {/* Column B: Resume + Action */}
+          {/* Resume + Action */}
           <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
             <Section title="Resume (PDF)">
               <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
@@ -440,7 +525,7 @@ export default function DashboardPage() {
   );
 }
 
-// ── Section wrapper (no number badge) ──────────────────────────────────────
+// ── Section wrapper ─────────────────────────────────────────────────────────
 function Section({
   title,
   titleExtra,
