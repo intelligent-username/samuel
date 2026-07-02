@@ -1,11 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getLoginUrl } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { getLoginUrl, fetchMe } from "@/lib/api";
 
 export default function Home() {
+  const router = useRouter();
   const [loginUrl, setLoginUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    fetchMe()
+      .then(() => router.replace("/dashboard"))
+      .catch(() => setChecking(false));
+  }, [router]);
 
   const handleLogin = async () => {
     setLoading(true);
@@ -16,6 +25,14 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  if (checking) {
+    return (
+      <main style={{ minHeight: "100vh", background: "var(--color-background)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span className="spinner spinner-lg" />
+      </main>
+    );
+  }
 
   return (
     <main

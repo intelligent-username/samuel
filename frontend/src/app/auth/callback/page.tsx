@@ -1,50 +1,56 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [error, setError] = useState<string | null>(null);
+  const called = useRef(false);
 
   const code = searchParams.get("code");
   const state = searchParams.get("state");
 
   useEffect(() => {
+    if (called.current) return;
+    called.current = true;
+
     if (!code || !state) {
-      router.push("/");
+      router.replace("/");
       return;
     }
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1112";
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     fetch(
       `${apiBase}/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
       { credentials: "include" }
     )
       .then((res) => {
-        if (!res.ok) throw new Error("Auth failed");
-        router.push("/dashboard");
+        if (res.ok) {
+          router.replace("/dashboard");
+        } else {
+          router.replace("/?error=auth_failed");
+        }
       })
-      .catch((err) => {
-        setError(err.message);
+      .catch(() => {
+        router.replace("/?error=auth_failed");
       });
   }, [code, state, router]);
 
-  if (error) {
-    return (
-      <p>
-        Authentication failed. <a href="/">Try again</a>
-      </p>
-    );
-  }
-
-  return <p>Authenticating...</p>;
+  return (
+    <main style={{ minHeight: "100vh", background: "var(--color-background)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <span className="spinner spinner-lg" />
+    </main>
+  );
 }
 
 export default function AuthCallback() {
   return (
-    <Suspense fallback={<p>Loading...</p>}>
+    <Suspense fallback={
+      <main style={{ minHeight: "100vh", background: "var(--color-background)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span className="spinner spinner-lg" />
+      </main>
+    }>
       <CallbackHandler />
     </Suspense>
   );

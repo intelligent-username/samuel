@@ -21,11 +21,18 @@ query($username: String!) {
           nodes { topic { name } }
         }
         pushedAt
+        createdAt
         readme: object(expression: "HEAD:README.md") {
           ... on Blob { text }
         }
         readmeAlt: object(expression: "HEAD:README") {
           ... on Blob { text }
+        }
+        pyprojectToml: object(expression: "HEAD:pyproject.toml") {
+          ... on Blob { byteSize }
+        }
+        cargoToml: object(expression: "HEAD:Cargo.toml") {
+          ... on Blob { byteSize }
         }
       }
     }
@@ -59,6 +66,10 @@ def _format_repo(raw: dict) -> dict:
         languages[edge["node"]["name"]] = edge["size"]
 
     topics = [t["topic"]["name"] for t in (raw.get("repositoryTopics") or {}).get("nodes", [])]
+    if raw.get("pyprojectToml"):
+        topics.append("pyproject-toml")
+    if raw.get("cargoToml"):
+        topics.append("cargo-toml")
 
     readme = None
     if raw.get("readme"):
@@ -66,11 +77,11 @@ def _format_repo(raw: dict) -> dict:
     if not readme and raw.get("readmeAlt"):
         readme = raw["readmeAlt"].get("text")
 
-    pushed_at = raw.get("pushedAt")
+    pushed_at_str = raw.get("pushedAt")
     last_push = None
-    if pushed_at:
+    if pushed_at_str:
         try:
-            last_push = datetime.fromisoformat(pushed_at.replace("Z", "+00:00"))
+            last_push = datetime.fromisoformat(pushed_at_str.replace("Z", "+00:00"))
         except Exception:
             pass
 

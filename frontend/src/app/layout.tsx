@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Samuel — AI Resume Rewriter",
+  title: "Samuel: Your Rewriter",
   description: "Tailor your resume to any job description using AI-powered semantic matching and smart rewriting.",
 };
 

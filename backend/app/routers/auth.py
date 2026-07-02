@@ -24,7 +24,7 @@ async def login(response: Response):
     response.set_cookie(key="oauth_state", value=state, httponly=True, max_age=600, samesite="lax")
     params = {
         "client_id": settings.github_client_id,
-        "redirect_uri": "http://localhost:1111/auth/callback",
+        "redirect_uri": "http://localhost:3000/auth/callback",
         "scope": "read:user public_repo",
         "state": state,
     }

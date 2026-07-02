@@ -1,47 +1,46 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap");
 
-/* ─── Design Tokens ─────────────────────────────────────────── */
 /* ─── Design Tokens ─────────────────────────────────────────── */
 :root {
   /* Default to Dark Mode */
-  --surface: #0a0a0c;
+  --surface: #070709;
   --shadow-light: transparent;
   --shadow-dark: transparent;
 
   /* Semantic */
-  --color-background: #0a0a0c;
-  --color-foreground: #e4e4e7;
-  --color-card: #121216;
-  --color-muted: #18181b;
-  --color-muted-fg: #71717a;
-  --color-border: #27272a;
-  --color-primary: #0284c7;
+  --color-background: #070709;
+  --color-foreground: #f4f4f5;
+  --color-card: #0f0f13;
+  --color-muted: #141419;
+  --color-muted-fg: #6c6c74;
+  --color-border: #1f1f26;
+  --color-primary: #006699;
   --color-primary-fg: #ffffff;
-  --color-accent: #ea580c;
+  --color-accent: #FC6A03;
   --color-accent-fg: #ffffff;
-  --color-destructive: #ef4444;
+  --color-destructive: #991b1b;
   --color-destructive-fg: #ffffff;
 
   /* Flat Shadows */
-  --nm-low:   0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --nm-mid:   0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --nm-high:  0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+  --nm-low:   0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --nm-mid:   0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+  --nm-high:  0 10px 15px -3px rgba(0, 0, 0, 0.7), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
   --nm-inset: none;
 }
 
 .dark {
-  --surface: #0a0a0c;
-  --color-background: #0a0a0c;
-  --color-foreground: #e4e4e7;
-  --color-card: #121216;
-  --color-muted: #18181b;
-  --color-muted-fg: #71717a;
-  --color-border: #27272a;
-  --color-primary: #0284c7;
+  --surface: #070709;
+  --color-background: #070709;
+  --color-foreground: #f4f4f5;
+  --color-card: #0f0f13;
+  --color-muted: #141419;
+  --color-muted-fg: #6c6c74;
+  --color-border: #1f1f26;
+  --color-primary: #006699;
   --color-primary-fg: #ffffff;
-  --color-accent: #ea580c;
+  --color-accent: #FC6A03;
   --color-accent-fg: #ffffff;
-  --color-destructive: #ef4444;
+  --color-destructive: #991b1b;
   --color-destructive-fg: #ffffff;
 }
 
@@ -51,7 +50,7 @@
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--color-background);
   color: var(--color-foreground);
   line-height: 1.6;
@@ -303,4 +302,79 @@ a:hover { color: var(--color-primary); filter: brightness(1.2); }
   h1 { font-size: 1.6rem; }
   h2 { font-size: 1.3rem; }
   .container { padding-inline: 1rem; }
+}
+
+/* ─── Floating Sign Out Button ───────────────────────────────── */
+.username-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.username-container .signout-btn {
+  opacity: 0;
+  transform: translateX(-5px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.username-container:hover .signout-btn {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+/* ─── Sidebar and Main Columns Proportions ───────────────────── */
+.sidebar-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+@media (min-width: 1280px) {
+  .sidebar-layout {
+    position: fixed;
+    left: 2rem;
+    top: 4rem;
+    width: 320px;
+    height: calc(100vh - 8rem);
+    overflow-y: auto;
+    opacity: 0.55;
+    transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 10;
+    padding-right: 0.5rem;
+  }
+  .sidebar-layout:hover {
+    opacity: 1;
+  }
+}
+
+.main-layout {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+@media (min-width: 1280px) {
+  .main-layout {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 99px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
 }

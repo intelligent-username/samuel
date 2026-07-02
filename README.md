@@ -9,7 +9,7 @@ LLM-based resume writer. Takes in GitHub repos, runs semantic matching, tailors 
 ## Prerequisites
 
 - Docker + Docker Compose
-- [GitHub OAuth App](https://github.com/settings/developers) (register one with callback URL `http://localhost:1111/auth/callback`)
+- [GitHub OAuth App](https://github.com/settings/developers) (register one with callback URL `http://localhost:3000/auth/callback`)
 - OpenRouter API key (or users supply their own)
 
 ## Quick Start
@@ -34,13 +34,13 @@ docker compose watch
 
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:1111 |
-| Backend API | http://localhost:1112 |
-| Health check | http://localhost:1112/health |
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| Health check | http://localhost:8000/health |
 
 ## Usage Flow
 
-1. Open http://localhost:1111 → **Login with GitHub**
+1. Open http://localhost:3000 → **Login with GitHub**
 2. In dashboard, click **Sync Repos** to fetch your public repos
 3. Set your **OpenRouter API key**
 4. Upload your current resume as **PDF**

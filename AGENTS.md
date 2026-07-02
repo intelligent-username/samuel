@@ -1,4 +1,4 @@
-# Samuel — Agent Guide
+# Samuel Agent Guide
 
 ## Project Overview
 

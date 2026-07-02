@@ -20,7 +20,7 @@ services:
       context: ./backend
       dockerfile: ../Dockerfile.backend
     ports:
-      - "1112:8000"
+      - "8000:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     develop:
       watch:
@@ -58,7 +58,7 @@ services:
       context: ./frontend
       dockerfile: ../Dockerfile.frontend
     ports:
-      - "1111:3000"
+      - "3000:3000"
     command: pnpm dev
     develop:
       watch:
@@ -69,7 +69,7 @@ services:
             - node_modules/
             - .next/
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:1112
+      NEXT_PUBLIC_API_URL: http://localhost:8000
     depends_on:
       backend:
         condition: service_healthy

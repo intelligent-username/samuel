@@ -2,14 +2,166 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   syncRepos, listRepos, uploadResume, saveApiKey,
-  getKeyStatus, listResumes, startGeneration,
+  getKeyStatus, listResumes, startGeneration, fetchMe, logout,
 } from "@/lib/api";
 import type { Repository, Resume } from "@/lib/types";
 
 type Message = { text: string; type: "info" | "success" | "error" };
 
+// ── Language bar ────────────────────────────────────────────────────────────
+const LANG_COLORS: Record<string, string> = {
+  TypeScript: "#3178c6", JavaScript: "#f7df1e", Python: "#3572a5",
+  Rust: "#dea584", Go: "#00add8", Java: "#b07219", "C++": "#f34b7d",
+  C: "#555555", HTML: "#e34c26", CSS: "#563d7c", Shell: "#89e051",
+  Vue: "#41b883", Svelte: "#ff3e00", Kotlin: "#a97bff", Swift: "#f05138",
+  Ruby: "#701516", PHP: "#4f5d95", Dart: "#00b4ab", Scala: "#dc322f",
+};
+
+function LangBar({ languages }: { languages: Record<string, number> | null }) {
+  if (!languages) return null;
+  const total = Object.values(languages).reduce((a, b) => a + b, 0);
+  if (total === 0) return null;
+  const entries = Object.entries(languages).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  return (
+    <div style={{ marginTop: "0.35rem" }}>
+      <div style={{ display: "flex", height: "4px", borderRadius: "2px", overflow: "hidden", gap: "1px" }}>
+        {entries.map(([lang, bytes]) => (
+          <div
+            key={lang}
+            title={`${lang}: ${((bytes / total) * 100).toFixed(1)}%`}
+            style={{
+              flex: bytes,
+              background: LANG_COLORS[lang] ?? "#888",
+              minWidth: "2px",
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.35rem" }}>
+        {entries.slice(0, 4).map(([lang, bytes]) => (
+          <span key={lang} style={{ display: "flex", alignItems: "center", gap: "0.2rem", fontSize: "0.65rem", color: "var(--color-muted-fg)" }}>
+            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: LANG_COLORS[lang] ?? "#888", display: "inline-block", flexShrink: 0 }} />
+            {lang} <span style={{ opacity: 0.6 }}>{((bytes / total) * 100).toFixed(0)}%</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Repo detail panel ───────────────────────────────────────────────────────
+function RepoDetail({ repo, onClose }: { repo: Repository; onClose: () => void }) {
+  const [tab, setTab] = useState<"overview" | "readme">("overview");
+  const total = repo.languages ? Object.values(repo.languages).reduce((a, b) => a + b, 0) : 0;
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "1.5rem",
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="nm-card"
+        style={{ maxWidth: "640px", width: "100%", maxHeight: "80vh", overflowY: "auto", position: "relative" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: "1rem" }}>{repo.name}</h3>
+            {repo.description && (
+              <p className="text-muted" style={{ margin: "0.25rem 0 0", fontSize: "0.825rem" }}>{repo.description}</p>
+            )}
+          </div>
+          <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem", flexShrink: 0 }}>
+            ✕
+          </button>
+        </div>
+
+        {/* Meta row */}
+        <div style={{ display: "flex", gap: "1rem", fontSize: "0.75rem", color: "var(--color-muted-fg)", marginBottom: "1rem", flexWrap: "wrap" }}>
+          <span>★ {repo.stars}</span>
+          {repo.last_push && <span>Last push: {new Date(repo.last_push).toLocaleDateString()}</span>}
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", borderBottom: "1px solid var(--color-border)", paddingBottom: "0.5rem" }}>
+          {(["overview", "readme"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`btn btn-sm${tab === t ? " btn-primary" : " btn-ghost"}`}
+              style={{ fontSize: "0.75rem", padding: "0.2rem 0.6rem" }}
+            >
+              {t === "overview" ? "Overview" : "README"}
+            </button>
+          ))}
+        </div>
+
+        {tab === "overview" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {/* Languages */}
+            {repo.languages && total > 0 && (
+              <div>
+                <p style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.4rem", color: "var(--color-muted-fg)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Languages</p>
+                <LangBar languages={repo.languages} />
+                <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                  {Object.entries(repo.languages).sort((a, b) => b[1] - a[1]).map(([lang, bytes]) => (
+                    <div key={lang} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: LANG_COLORS[lang] ?? "#888", display: "inline-block" }} />
+                        {lang}
+                      </span>
+                      <span className="text-muted">{((bytes / total) * 100).toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Topics */}
+            {repo.topics && repo.topics.length > 0 && (
+              <div>
+                <p style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.4rem", color: "var(--color-muted-fg)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Topics</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                  {repo.topics.map((t) => (
+                    <span key={t} className="chip" style={{ fontSize: "0.72rem" }}>#{t}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "readme" && (
+          <div>
+            {repo.readme_text ? (
+              <pre style={{
+                fontFamily: "monospace", fontSize: "0.78rem", lineHeight: 1.6,
+                whiteSpace: "pre-wrap", wordBreak: "break-word",
+                color: "var(--color-muted-fg)", maxHeight: "400px", overflowY: "auto",
+              }}>
+                {repo.readme_text.slice(0, 4000)}{repo.readme_text.length > 4000 ? "\n\n[truncated…]" : ""}
+              </pre>
+            ) : (
+              <p className="text-muted" style={{ fontSize: "0.85rem" }}>No README found.</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ───────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const router = useRouter();
 
@@ -25,15 +177,23 @@ export default function DashboardPage() {
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
+  const [username, setUsername] = useState("");
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    Promise.all([listRepos(), listResumes(), getKeyStatus()]).then(([r, res, k]) => {
+    Promise.all([
+      listRepos(),
+      listResumes(),
+      getKeyStatus(),
+      fetchMe().catch(() => null)
+    ]).then(([r, res, k, u]) => {
       setRepos(r);
       setResumes(res);
       if (res.length > 0) setSelectedResumeId(res[0].id);
       setHasKey(k.has_key);
       setEnvConfigured(k.env_configured);
+      if (u) setUsername(u.github_username);
     });
   }, []);
 
@@ -100,262 +260,201 @@ export default function DashboardPage() {
     }
   };
 
+  const handleLogout = async () => {
+    await logout();
+    router.push("/");
+  };
+
   const msgColor =
     msg?.type === "success" ? "#1a9e6e" : msg?.type === "error" ? "var(--color-destructive)" : "var(--color-muted-fg)";
 
-  const repoSecNum = 1;
-  const keySecNum = envConfigured ? 0 : 2;
-  const resumeSecNum = envConfigured ? 2 : 3;
-  const jobSecNum = envConfigured ? 3 : 4;
+  const usernameTag = username ? (
+    <div className="username-container" style={{ marginLeft: "auto" }}>
+      <div className="nm-card-sm" style={{ padding: "0.2rem 0.5rem", display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem", borderRadius: "4px" }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.6 }}>
+          <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+        </svg>
+        <span>{username}</span>
+      </div>
+      <button
+        onClick={handleLogout}
+        className="btn btn-ghost btn-xs signout-btn"
+        style={{ padding: "0.2rem 0.5rem", fontSize: "0.7rem" }}
+      >
+        Sign out
+      </button>
+    </div>
+  ) : null;
 
   return (
-    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "1rem" }}>
-      <h2 style={{ marginBottom: "0.25rem" }}>Resume Generator</h2>
-      <p className="text-muted" style={{ marginBottom: "2rem" }}>
-        Follow the steps below to generate a tailored resume.
-      </p>
+    <div className="relative min-h-screen w-full">
+      {selectedRepo && <RepoDetail repo={selectedRepo} onClose={() => setSelectedRepo(null)} />}
 
-      <div className="dashboard-grid">
-        {/* Left Column */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          {/* Step 1: GitHub Repos */}
-          <Section number={repoSecNum} title="GitHub Repositories">
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-              <button
-                id="sync-repos-btn"
-                onClick={handleSync}
-                disabled={syncing}
-                className="btn btn-primary"
-              >
-                {syncing && <span className="spinner spinner-sm" />}
-                {syncing ? "Syncing..." : "Sync Repos"}
-              </button>
-              {repos.length > 0 && (
-                <span className="text-muted text-sm">{repos.length} repos cached</span>
-              )}
-            </div>
-            {repos.length > 0 && (
-              <div
-                className="nm-inset"
-                style={{ marginTop: "1rem", maxHeight: "360px", overflowY: "auto" }}
-              >
-                {repos.map((r) => (
-                  <div
-                    key={r.id}
-                    style={{
-                      padding: "0.875rem",
-                      borderBottom: "1px solid var(--color-border)",
-                      fontSize: "0.875rem",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.35rem",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                      <span style={{ fontWeight: 600, color: "var(--color-foreground)" }}>{r.name}</span>
-                      <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.75rem" }} className="text-muted">
-                        <span>Stars: {r.stars}</span>
-                        {r.last_push && (
-                          <span>Pushed: {new Date(r.last_push).toLocaleDateString()}</span>
-                        )}
-                      </div>
-                    </div>
-                    {r.description && (
-                      <p className="text-muted" style={{ margin: 0, fontSize: "0.8125rem", lineBreak: "anywhere" }}>
-                        {r.description}
-                      </p>
-                    )}
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginTop: "0.25rem" }}>
-                      {r.languages && Object.keys(r.languages).slice(0, 3).map((lang) => (
-                        <span key={lang} className="chip text-xs" style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem" }}>
-                          {lang}
-                        </span>
-                      ))}
-                      {r.topics && r.topics.slice(0, 3).map((topic) => (
-                        <span key={topic} className="chip text-xs" style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", borderColor: "transparent", background: "var(--color-muted)" }}>
-                          #{topic}
-                        </span>
-                      ))}
-                      {r.readme_text && (
-                        <span className="chip text-xs" style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", color: "var(--color-primary)", borderColor: "var(--color-primary)" }}>
-                          README
-                        </span>
-                      )}
-                    </div>
+      {/* Left Sidebar */}
+      <aside className="sidebar-layout custom-scrollbar">
+        {/* GitHub Repositories */}
+        <Section title="GitHub Repositories" titleExtra={usernameTag}>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <button id="sync-repos-btn" onClick={handleSync} disabled={syncing} className="btn btn-primary btn-sm">
+              {syncing && <span className="spinner spinner-sm" />}
+              {syncing ? "Syncing..." : "Sync Repos"}
+            </button>
+            {repos.length > 0 && <span className="text-muted text-xs">{repos.length} repos cached</span>}
+          </div>
+
+          {repos.length > 0 && (
+            <div className="nm-inset custom-scrollbar" style={{ marginTop: "1rem", maxHeight: "320px", overflowY: "auto" }}>
+              {repos.map((r) => (
+                <div
+                  key={r.id}
+                  onClick={() => setSelectedRepo(r)}
+                  style={{
+                    padding: "0.65rem 0.75rem",
+                    borderBottom: "1px solid var(--color-border)",
+                    cursor: "pointer",
+                    transition: "background 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-muted)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--color-foreground)" }}>{r.name}</span>
+                    <span style={{ fontSize: "0.7rem", color: "var(--color-muted-fg)" }}>★ {r.stars}</span>
                   </div>
-                ))}
+                  {r.description && (
+                    <p style={{
+                      margin: "0.2rem 0 0", fontSize: "0.72rem", color: "var(--color-muted-fg)",
+                      display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden",
+                    }}>
+                      {r.description}
+                    </p>
+                  )}
+                  <LangBar languages={r.languages} />
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        {/* OpenRouter API Key */}
+        {!envConfigured && (
+          <Section title="OpenRouter API Key">
+            {hasKey && !showKeyInput ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <div className="nm-card-sm" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1, padding: "0.5rem 0.75rem" }}>
+                  <span style={{ letterSpacing: "0.15em", color: "var(--color-muted-fg)", fontSize: "0.8rem" }}>••••••••••••••••</span>
+                  <span style={{ marginLeft: "auto" }}>
+                    <span className="chip" style={{ background: "transparent", color: "#1a9e6e", borderColor: "#1a9e6e", fontSize: "0.65rem", padding: "0.05rem 0.3rem" }}>Saved</span>
+                  </span>
+                </div>
+                <button id="change-key-btn" onClick={() => setShowKeyInput(true)} className="btn btn-sm">Change</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                <input
+                  id="api-key-input" type="password" placeholder="sk-or-..."
+                  value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)}
+                  className="input" style={{ flex: 1, padding: "0.5rem", fontSize: "0.8rem" }}
+                  onKeyDown={(e) => e.key === "Enter" && handleSaveKey()}
+                />
+                <button id="save-key-btn" onClick={handleSaveKey} disabled={savingKey || !apiKeyInput.trim()} className="btn btn-primary btn-sm">
+                  {savingKey ? <span className="spinner spinner-sm" /> : "Save"}
+                </button>
+                {showKeyInput && <button onClick={() => setShowKeyInput(false)} className="btn btn-ghost btn-sm">Cancel</button>}
               </div>
             )}
+            <p className="text-xs text-muted" style={{ marginTop: "0.5rem" }}>
+              Get a key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/keys</a>. Encrypted at rest.
+            </p>
           </Section>
+        )}
 
-          {/* Step 3/4: Job Description */}
-          <Section number={jobSecNum} title="Job Description">
+        {/* Footer */}
+        <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Samuel Console</span>
+          <Link href="/dashboard/history" style={{ fontSize: "0.75rem", color: "var(--color-primary)", textDecoration: "underline" }}>View History</Link>
+        </div>
+      </aside>
+
+      {/* Main Centered Content */}
+      <div className="main-layout">
+        <h1 style={{ fontSize: "2.5rem", fontWeight: 800, textAlign: "center", marginBottom: "0.5rem", letterSpacing: "-0.025em" }}>
+          Resume Personalizer
+        </h1>
+        <p className="text-muted" style={{ textAlign: "center", marginBottom: "3rem", fontSize: "0.9rem" }}>
+          Paste a job description and upload your resume to generate a tailored version.
+        </p>
+
+        <div style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr", gap: "2.5rem" }} className="dashboard-grid">
+          {/* Column A: Job Description */}
+          <Section title="Job Description">
             <textarea
-              id="job-description"
-              rows={12}
-              placeholder="Paste the job description here..."
-              value={jobDesc}
-              onChange={(e) => setJobDesc(e.target.value)}
-              className="textarea"
-              style={{ minHeight: "220px" }}
+              id="job-description" rows={12} placeholder="Paste the job description here..."
+              value={jobDesc} onChange={(e) => setJobDesc(e.target.value)}
+              className="textarea" style={{ minHeight: "320px", fontSize: "0.85rem", lineHeight: "1.6" }}
             />
-            <p className="text-xs text-muted" style={{ marginTop: "0.35rem" }}>
+            <p className="text-xs text-muted" style={{ marginTop: "0.5rem", fontFamily: "monospace" }}>
               {jobDesc.trim().split(/\s+/).filter(Boolean).length} words
             </p>
           </Section>
-        </div>
 
-        {/* Right Column */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          {/* Step 2: API Key (only if not envConfigured) */}
-          {!envConfigured && (
-            <Section number={keySecNum} title="OpenRouter API Key">
-              {hasKey && !showKeyInput ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                  <div className="nm-card-sm" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
-                    <span style={{ letterSpacing: "0.15em", color: "var(--color-muted-fg)" }}>
-                      ••••••••••••••••
-                    </span>
-                    <span style={{ marginLeft: "auto" }}>
-                      <span className="chip" style={{ background: "transparent", color: "#1a9e6e", borderColor: "#1a9e6e" }}>Saved</span>
-                    </span>
-                  </div>
-                  <button
-                    id="change-key-btn"
-                    onClick={() => setShowKeyInput(true)}
-                    className="btn btn-sm"
-                  >
-                    Change
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
-                  <input
-                    id="api-key-input"
-                    type="password"
-                    placeholder="sk-or-..."
-                    value={apiKeyInput}
-                    onChange={(e) => setApiKeyInput(e.target.value)}
-                    className="input"
-                    style={{ flex: 1 }}
-                    onKeyDown={(e) => e.key === "Enter" && handleSaveKey()}
-                  />
-                  <button
-                    id="save-key-btn"
-                    onClick={handleSaveKey}
-                    disabled={savingKey || !apiKeyInput.trim()}
-                    className="btn btn-primary"
-                  >
-                    {savingKey ? <span className="spinner spinner-sm" /> : "Save"}
-                  </button>
-                  {showKeyInput && (
-                    <button onClick={() => setShowKeyInput(false)} className="btn btn-ghost btn-sm">
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              )}
-              <p className="text-xs text-muted" style={{ marginTop: "0.5rem" }}>
-                Get a key at{" "}
-                <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
-                  openrouter.ai/keys
-                </a>
-                . Keys are encrypted at rest.
-              </p>
+          {/* Column B: Resume + Action */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+            <Section title="Resume (PDF)">
+              <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+                <button id="upload-resume-btn" onClick={() => fileRef.current?.click()} className="btn">
+                  Upload PDF
+                </button>
+                <input ref={fileRef} type="file" accept=".pdf" onChange={handleUpload} style={{ display: "none" }} />
+                {resumes.length > 0 && (
+                  <select id="resume-select" value={selectedResumeId} onChange={(e) => setSelectedResumeId(e.target.value)} className="select" style={{ maxWidth: "260px" }}>
+                    {resumes.map((r) => <option key={r.id} value={r.id}>{r.original_filename}</option>)}
+                  </select>
+                )}
+              </div>
             </Section>
-          )}
 
-          {/* Step 2/3: Upload Resume */}
-          <Section number={resumeSecNum} title="Resume (PDF)">
-            <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+            <div>
               <button
-                id="upload-resume-btn"
-                onClick={() => fileRef.current?.click()}
-                className="btn"
+                id="generate-btn" onClick={handleGenerate} disabled={generating}
+                className="btn btn-accent btn-lg"
+                style={{ width: "100%", justifyContent: "center", paddingBlock: "0.875rem", transition: "transform 0.1s ease" }}
+                onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.98) translateY(1px)"; }}
+                onMouseUp={(e) => { e.currentTarget.style.transform = "none"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; }}
               >
-                Upload PDF
+                {generating && <span className="spinner spinner-sm" />}
+                {generating ? "Starting generation..." : "Generate Rewritten Resume"}
               </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".pdf"
-                onChange={handleUpload}
-                style={{ display: "none" }}
-              />
-              {resumes.length > 0 && (
-                <select
-                  id="resume-select"
-                  value={selectedResumeId}
-                  onChange={(e) => setSelectedResumeId(e.target.value)}
-                  className="select"
-                  style={{ maxWidth: "260px" }}
-                >
-                  {resumes.map((r) => (
-                    <option key={r.id} value={r.id}>{r.original_filename}</option>
-                  ))}
-                </select>
-              )}
             </div>
-          </Section>
 
-          {/* Rewrite Button */}
-          <div style={{ marginTop: "0.5rem" }}>
-            <button
-              id="generate-btn"
-              onClick={handleGenerate}
-              disabled={generating}
-              className="btn btn-accent btn-lg"
-              style={{ width: "100%", justifyContent: "center" }}
-            >
-              {generating && <span className="spinner spinner-sm" />}
-              {generating ? "Starting generation..." : "Generate Rewritten Resume"}
-            </button>
+            {msg && (
+              <div style={{ padding: "0.75rem 1rem", borderRadius: "8px", background: "var(--color-card)", border: "1px solid var(--color-border)", color: msgColor, fontSize: "0.875rem", fontWeight: 500 }}>
+                {msg.text}
+              </div>
+            )}
           </div>
-
-          {/* Message */}
-          {msg && (
-            <div
-              style={{
-                padding: "0.75rem 1rem",
-                borderRadius: "8px",
-                background: "var(--color-card)",
-                border: "1px solid var(--color-border)",
-                color: msgColor,
-                fontSize: "0.875rem",
-                fontWeight: 500,
-              }}
-            >
-              {msg.text}
-            </div>
-          )}
         </div>
       </div>
     </div>
   );
 }
 
-function Section({ number, title, children }: { number: number; title: string; children: React.ReactNode }) {
+// ── Section wrapper (no number badge) ──────────────────────────────────────
+function Section({
+  title,
+  titleExtra,
+  children,
+}: {
+  title: string;
+  titleExtra?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="nm-card">
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-        <div
-          style={{
-            width: "28px",
-            height: "28px",
-            borderRadius: "4px",
-            background: "var(--color-primary)",
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 700,
-            fontSize: "0.8rem",
-            flexShrink: 0,
-          }}
-        >
-          {number}
-        </div>
-        <h3 style={{ margin: 0 }}>{title}</h3>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+        <h3 style={{ margin: 0, fontSize: "0.95rem" }}>{title}</h3>
+        {titleExtra}
       </div>
       {children}
     </div>
