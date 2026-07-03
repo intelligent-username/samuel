@@ -13,7 +13,8 @@ router = APIRouter(prefix="/history", tags=["history"])
 
 
 @router.get("/")
-async def list_generations(request: Request, db: AsyncSession = Depends(get_db)):
+async def list_generations(request: Request, db: AsyncSession = Depends(get_db)) -> list:
+    """List the most recent generations for the authenticated user."""
     user_id = get_session_user_id(request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -29,7 +30,10 @@ async def list_generations(request: Request, db: AsyncSession = Depends(get_db))
 
 
 @router.get("/{generation_id}")
-async def get_generation(generation_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)):
+async def get_generation(
+    generation_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)
+) -> GenerationResponse:
+    """Get full details for a specific generation."""
     user_id = get_session_user_id(request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")

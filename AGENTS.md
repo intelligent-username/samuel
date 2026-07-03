@@ -2,14 +2,14 @@
 
 ## Project Overview
 
-**Samuel** is an LLM-based agentic resume rewriter. It reads a user's resume (PDF), fetches and caches their public GitHub repositories via GitHub's GraphQL API, semantically matches repository details against a target Job Description (using pgvector), rewrites the skills and projects sections of the resume to align with the JD, runs an ATS compatibility check, and streams progress live to the frontend using Server-Sent Events (SSE).
+**Samuel** is an LLM-based agentic resume rewriter. It reads a user's resume (PDF), fetches and caches their public GitHub repositories via GitHub's GraphQL API, matches repository details against a target Job Description using LLM-based ranking, rewrites the skills and projects sections of the resume to align with the JD, runs an ATS compatibility check, and streams progress live to the frontend using Server-Sent Events (SSE).
 
 ---
 
 ## CRITICAL RULES
 
 ### Do NOT modify UI unless explicitly asked
-The frontend features a strict **Neumorphic design system** styled with CSS variables and Tailwind (see `notes/STYLE.md`). Do not touch or modify components, typography, layout, themes, spacing, or neumorphic box-shadow structures unless explicitly requested.
+The frontend features a strict **Neumorphic design system** styled with CSS variables and Tailwind. Do not touch or modify components, typography, layout, themes, spacing, or neumorphic box-shadow structures unless explicitly requested.
 
 ### Keep code minimalistic & clean
 Avoid unnecessary abstractions, defensive programming for impossible states, boilerplate, or over-engineering. Write minimal, direct code following existing patterns. Do not add comments unless the logic is genuinely non-obvious.
@@ -24,7 +24,8 @@ Avoid unnecessary abstractions, defensive programming for impossible states, boi
 - **Never commit** `.env` files, Docker secrets, or credential material.
 
 ### GitHub API Usage
-- **Do NOT** make REST calls to the GitHub API. Always use the single query GitHub GraphQL client to fetch repository info (name, description, README, stars, languages, topics).
+- **Do NOT** make REST calls to the GitHub API for repository data. Always use the single query GitHub GraphQL client to fetch repository info (name, description, README, stars, languages, topics).
+- The auth flow (`routers/auth.py`) uses GitHub REST endpoints (`/user`, `/login/oauth/access_token`) — this is the only exception.
 
 ---
 
@@ -59,7 +60,7 @@ User (Browser)
 | `models/` | SQLAlchemy ORM database models (`user.py`, `repository.py`, `resume.py`, `generation.py`). |
 | `schemas/` | Pydantic models for validation and request/response serialization. |
 | `routers/` | Endpoint definitions grouped by feature (`auth.py`, `github.py`, `resume.py`, `generate.py`, `history.py`). |
-| `services/` | Integration services: `github_graphql.py`, `pdf_extractor.py`, `encryption.py` (Fernet), `embedding.py`. |
+| `services/` | Integration services: `auth.py`, `github_graphql.py`, `pdf_extractor.py`, `encryption.py` (Fernet). |
 | `skills/` | The core agentic skill chain (orchestrator and individual sub-agents). |
 | `utils/llm.py` | Low-level OpenRouter client supporting chat completions and text embeddings. |
 

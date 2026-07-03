@@ -5,17 +5,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class UserCreate(BaseModel):
-    github_id: int
-    github_username: str
-    github_access_token: str
-
-
-class UserUpdate(BaseModel):
-    openrouter_api_key: str | None = None
-
-
 class UserResponse(BaseModel):
+    """Public user profile returned to the frontend."""
     id: UUID
     github_id: int
     github_username: str
@@ -25,6 +16,7 @@ class UserResponse(BaseModel):
 
 
 class RepositoryResponse(BaseModel):
+    """Cached GitHub repository data returned to the frontend."""
     id: UUID
     name: str
     description: str | None = None
@@ -44,12 +36,8 @@ class RepositoryResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ResumeUpload(BaseModel):
-    original_filename: str
-    extracted_text: str
-
-
 class ResumeResponse(BaseModel):
+    """Uploaded resume metadata (extracted text is included in the response)."""
     id: UUID
     original_filename: str
     extracted_text: str
@@ -59,11 +47,13 @@ class ResumeResponse(BaseModel):
 
 
 class GenerateRequest(BaseModel):
+    """Request body to start a new resume generation."""
     resume_id: UUID
     job_description: str = Field(..., min_length=10)
 
 
 class GenerationResponse(BaseModel):
+    """Generation record returned to the frontend."""
     id: UUID
     status: str
     rewritten_resume_text: str | None = None
@@ -75,21 +65,9 @@ class GenerationResponse(BaseModel):
 
 
 class JDRequirements(BaseModel):
+    """Structured requirements extracted from a job description by the JD Parser skill."""
     hard_requirements: list[str]
     preferred_skills: list[str]
     seniority_level: str
     red_flags: list[str]
     keywords: list[str]
-
-
-class RankedProject(BaseModel):
-    repo_id: UUID
-    name: str
-    relevance_score: float
-    match_reasons: list[str]
-
-
-class ATSReport(BaseModel):
-    score: int = Field(..., ge=0, le=100)
-    issues: list[str]
-    warnings: list[str]

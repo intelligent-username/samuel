@@ -1,4 +1,5 @@
 import secrets
+import logging
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -9,7 +10,10 @@ from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.schemas import UserResponse
-from app.services.auth import create_session_token
+from app.services.auth import create_session_token, get_session_user_id
+from app.services.encryption import encrypt
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -19,7 +23,8 @@ GITHUB_USER_URL = "https://api.github.com/user"
 
 
 @router.get("/login")
-async def login(response: Response):
+async def login(response: Response) -> dict:
+    """Initiate GitHub OAuth login by returning the authorize URL."""
     state = secrets.token_urlsafe(16)
     response.set_cookie(key="oauth_state", value=state, httponly=True, max_age=600, samesite="lax")
     params = {
@@ -33,7 +38,10 @@ async def login(response: Response):
 
 
 @router.get("/callback")
-async def callback(code: str, state: str, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+async def callback(
+    code: str, state: str, request: Request, response: Response, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Handle GitHub OAuth callback: exchange code, fetch user, upsert DB record, set session cookie."""
     stored_state = request.cookies.get("oauth_state")
     if not stored_state or stored_state != state:
         raise HTTPException(status_code=400, detail="State mismatch — possible CSRF")
@@ -49,8 +57,6 @@ async def callback(code: str, state: str, request: Request, response: Response, 
     result = await db.execute(select(User).where(User.github_id == github_user["id"]))
     user = result.scalar_one_or_none()
 
-    from app.services.encryption import encrypt
-
     if user:
         user.github_access_token = encrypt(access_token)
         user.github_username = github_user["login"]
@@ -65,14 +71,16 @@ async def callback(code: str, state: str, request: Request, response: Response, 
     await db.refresh(user)
 
     session_token = create_session_token(str(user.id))
-    response.set_cookie(key="session", value=session_token, httponly=True, max_age=7 * 24 * 3600, samesite="lax", secure=settings.secure_cookie)
+    response.set_cookie(
+        key="session", value=session_token, httponly=True,
+        max_age=7 * 24 * 3600, samesite="lax", secure=settings.secure_cookie,
+    )
     return {"message": "authenticated", "user": UserResponse.model_validate(user)}
 
 
 @router.get("/me")
-async def me(request: Request, db: AsyncSession = Depends(get_db)):
-    from app.services.auth import get_session_user_id
-
+async def me(request: Request, db: AsyncSession = Depends(get_db)) -> UserResponse:
+    """Return the currently authenticated user's profile."""
     user_id = get_session_user_id(request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -85,12 +93,14 @@ async def me(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout(response: Response) -> dict:
+    """Clear the session cookie to log the user out."""
     response.delete_cookie("session")
     return {"message": "logged out"}
 
 
 async def _exchange_code(code: str) -> dict:
+    """Exchange an OAuth authorization code for an access token from GitHub."""
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             GITHUB_TOKEN_URL,
@@ -105,6 +115,7 @@ async def _exchange_code(code: str) -> dict:
 
 
 async def _fetch_github_user(access_token: str) -> dict:
+    """Fetch the authenticated GitHub user's profile via REST API."""
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             GITHUB_USER_URL,

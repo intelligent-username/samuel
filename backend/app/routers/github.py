@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -9,13 +10,17 @@ from app.models.repository import Repository
 from app.models.user import User
 from app.schemas import RepositoryResponse
 from app.services.auth import get_session_user_id
+from app.services.encryption import decrypt
 from app.services.github_graphql import fetch_user_repos
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/github", tags=["github"])
 
 
 @router.post("/sync")
-async def sync_repos(request: Request, db: AsyncSession = Depends(get_db)):
+async def sync_repos(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """Fetch and cache GitHub repositories for the authenticated user."""
     user_id = get_session_user_id(request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -26,15 +31,15 @@ async def sync_repos(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
     try:
-        from app.services.encryption import decrypt
-        try:
-            token = decrypt(user.github_access_token)
-        except Exception:
-            token = user.github_access_token
+        token = decrypt(user.github_access_token)
+    except Exception:
+        logger.warning("Failed to decrypt token, falling back to raw token")
+        token = user.github_access_token
+
+    try:
         repos_data, avatar_url = await fetch_user_repos(token, user.github_username)
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).exception("GitHub sync error")
+        logger.exception("GitHub sync error")
         raise HTTPException(status_code=502, detail=f"GitHub sync failed: {type(e).__name__}: {e}")
 
     now = datetime.now(timezone.utc)
@@ -59,7 +64,8 @@ async def sync_repos(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/repos")
-async def list_repos(request: Request, db: AsyncSession = Depends(get_db)):
+async def list_repos(request: Request, db: AsyncSession = Depends(get_db)) -> list:
+    """List all cached GitHub repositories for the authenticated user."""
     user_id = get_session_user_id(request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")

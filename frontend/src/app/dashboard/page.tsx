@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import remarkFrontmatter from "remark-frontmatter";
+
 import {
   syncRepos, listRepos, uploadResume, saveApiKey,
   getKeyStatus, listResumes, startGeneration, fetchMe, logout,
@@ -227,12 +228,14 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       listRepos(),
       listResumes(),
       getKeyStatus(),
       fetchMe().catch(() => null),
     ]).then(([r, res, k, u]) => {
+      if (cancelled) return;
       setRepos(r);
       setResumes(res);
       if (res.length > 0) setSelectedResumeId(res[0].id);
@@ -253,8 +256,8 @@ export default function DashboardPage() {
       setRepos(fresh);
       setRemovedIds(new Set()); // sync resets removals
       flash(`Synced ${fresh.length} repositories`, "success");
-    } catch (e: any) {
-      flash(e.message || "Sync failed", "error");
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : "Sync failed", "error");
     } finally {
       setSyncing(false);
     }
@@ -275,8 +278,8 @@ export default function DashboardPage() {
       setResumes(all);
       setSelectedResumeId(resume.id);
       flash(`Uploaded: ${file.name}`, "success");
-    } catch (e: any) {
-      flash(e.message || "Upload failed", "error");
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : "Upload failed", "error");
     }
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -290,8 +293,8 @@ export default function DashboardPage() {
       setApiKeyInput("");
       setShowKeyInput(false);
       flash("API key saved securely", "success");
-    } catch (e: any) {
-      flash(e.message || "Failed to save key", "error");
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : "Failed to save key", "error");
     } finally {
       setSavingKey(false);
     }
@@ -305,8 +308,8 @@ export default function DashboardPage() {
     try {
       const gen = await startGeneration(selectedResumeId, jobDesc);
       router.push(`/dashboard/results/${gen.id}`);
-    } catch (e: any) {
-      flash(e.message || "Failed to start generation", "error");
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : "Failed to start generation", "error");
       setGenerating(false);
     }
   };

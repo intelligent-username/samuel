@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
 import { fetchGenerations, fetchMe, logout } from "@/lib/api";
 import type { Generation } from "@/lib/types";
 
@@ -82,11 +83,6 @@ export default function HistoryPage() {
   return (
     <div className="page-shell">
       <aside className="sidebar-layout custom-scrollbar">
-        {usernameTag && (
-          <div style={{ display: "flex", width: "100%", justifyContent: "flex-end", marginBottom: "-0.5rem" }}>
-            {usernameTag}
-          </div>
-        )}
         <Section title="Workspace Status">
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.8125rem", marginTop: "0.5rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -106,10 +102,16 @@ export default function HistoryPage() {
 
         {/* Navigation */}
         <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Samuel</span>
           <Link href="/dashboard" style={{ fontSize: "0.75rem", color: "var(--color-primary)", textDecoration: "underline" }}>
             Dashboard
           </Link>
+          <button
+            onClick={handleLogout}
+            className="btn btn-ghost btn-xs"
+            style={{ padding: "0.2rem 0.5rem", fontSize: "0.7rem", textDecoration: "underline" }}
+          >
+            Sign out
+          </button>
         </div>
       </aside>
 

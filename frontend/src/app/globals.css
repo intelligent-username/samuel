@@ -147,13 +147,8 @@ a:hover { color: var(--color-primary); filter: brightness(1.2); }
 }
 .btn-ghost:hover:not(:disabled) { background: var(--color-muted); border-color: transparent; }
 
-.btn-danger {
-  background: var(--color-destructive);
-  color: var(--color-destructive-fg);
-  border-color: var(--color-destructive);
-}
-
 .btn-sm { padding: 0.4rem 0.875rem; font-size: 0.8125rem; border-radius: 6px; }
+.btn-xs { padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px; }
 .btn-lg { padding: 0.75rem 1.75rem; font-size: 1rem; border-radius: 10px; }
 
 /* ─── Form Elements ──────────────────────────────────────────── */
@@ -190,7 +185,6 @@ a:hover { color: var(--color-primary); filter: brightness(1.2); }
 .section { margin-bottom: 2rem; }
 
 .flex { display: flex; }
-.flex-col { flex-direction: column; }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
 .gap-2 { gap: 0.5rem; }
@@ -251,13 +245,6 @@ a:hover { color: var(--color-primary); filter: brightness(1.2); }
 .text-sm { font-size: 0.875rem; }
 .text-xs { font-size: 0.75rem; }
 .font-mono { font-family: "Fira Code", "Cascadia Code", monospace; }
-.rounded-full { border-radius: 9999px; }
-
-.divider {
-  height: 1px;
-  background: var(--color-border);
-  margin-block: 1.5rem;
-}
 
 /* ─── Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -280,7 +267,6 @@ a:hover { color: var(--color-primary); filter: brightness(1.2); }
   animation: spin 0.7s linear infinite;
 }
 .spinner-sm  { width: 1rem;  height: 1rem;  }
-.spinner-md  { width: 1.5rem; height: 1.5rem; border-width: 2.5px; }
 .spinner-lg  { width: 2.5rem; height: 2.5rem; border-width: 3px; }
 
 /* ─── Dashboard Grid ────────────────────────────────────────── */

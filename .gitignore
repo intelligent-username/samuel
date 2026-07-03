@@ -2,6 +2,7 @@ notes/
 *.md
 !README.md
 !AGENTS.md
+!backend/app/skills/*.md
 
 # Environment & Secrets
 .env
@@ -66,7 +67,6 @@ secrets/
 
 # OS
 Thumbs.db
-.DS_Store
 
 # Docker
 .dockerignore
@@ -75,5 +75,6 @@ docker-compose.override.yml
 # Temporary
 *.tmp
 .cache/
+.ruff_cache/
 tmp/
 temp/

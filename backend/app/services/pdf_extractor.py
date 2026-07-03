@@ -2,12 +2,6 @@ import re
 
 import fitz  # PyMuPDF
 
-# Headers that typically delimit resume sections
-_SECTION_HEADERS = re.compile(
-    r"^(?P<header>skills?|technical skills?|core competencies?|projects?|personal projects?|side projects?|open[- ]?source)\s*$",
-    re.IGNORECASE | re.MULTILINE,
-)
-
 # Any uppercase/title-case line that could be the next section boundary
 _ANY_HEADER = re.compile(
     r"^(?:experience|education|work|employment|certifications?|awards?|publications?|languages?|summary|objective|about|contact|references?)\s*$",
@@ -16,6 +10,7 @@ _ANY_HEADER = re.compile(
 
 
 def extract_text_from_pdf(content: bytes) -> str:
+    """Extract all text from a PDF document."""
     doc = fitz.open(stream=content, filetype="pdf")
     text_parts = []
     for page in doc:
@@ -32,6 +27,7 @@ def extract_sections(text: str) -> dict[str, str]:
 
 
 def _extract_section(text: str, target_names: set[str]) -> str:
+    """Extract the content of a named section from resume text."""
     lines = text.splitlines()
     result: list[str] = []
     capturing = False

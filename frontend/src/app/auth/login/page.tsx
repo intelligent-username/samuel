@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import { getLoginUrl } from "@/lib/api";
 
 export default function LoginPage() {
   const [loginUrl, setLoginUrl] = useState("");
 
   useEffect(() => {
-    getLoginUrl().then((url) => setLoginUrl(url)).catch(() => {});
+    getLoginUrl().then((url) => setLoginUrl(url)).catch((err) => console.error("Failed to get login URL:", err));
   }, []);
 
   return (

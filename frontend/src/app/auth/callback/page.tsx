@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useRef, Suspense } from "react";
+
 import { useRouter, useSearchParams } from "next/navigation";
 
 function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const called = useRef(false);
+  const params = searchParams ?? new URLSearchParams();
 
-  const code = searchParams.get("code");
-  const state = searchParams.get("state");
+  const code = params.get("code");
+  const state = params.get("state");
 
   useEffect(() => {
     if (called.current) return;

@@ -1,44 +1,53 @@
 import json
+import logging
 from pathlib import Path
 
 from app.utils.llm import LLMClient
 
+logger = logging.getLogger(__name__)
+
+SKILL_FILE = Path(__file__).parent / "resume_writer.md"
+
 
 class ResumeWriterSkill:
-    SKILL_FILE = Path(__file__).parent / "resume_writer.md"
+    """Rewrite the skills and projects sections of a resume to align with a job description."""
 
     async def run(
         self,
-        skills_text: str,
-        projects_text: str,
+        resume_text: str,
         jd_requirements: dict,
         ranked_projects: list[dict],
         llm: LLMClient,
         debug_dir: Path | None = None,
-    ) -> dict[str, str]:
+    ) -> str:
+        """Generate a rewritten resume with optimized skills and projects sections.
+
+        Args:
+            resume_text: The original full resume text.
+            jd_requirements: Structured requirements from JD Parser.
+            ranked_projects: Ranked repositories from Project Matcher.
+            llm: An initialized LLM client.
+            debug_dir: Optional directory for debug output.
+
+        Returns:
+            The rewritten resume text (only skills and projects sections modified).
+        """
         prompt = (
-            self.SKILL_FILE.read_text()
-            .replace("{{SKILLS_SECTION}}", skills_text)
-            .replace("{{PROJECTS_SECTION}}", projects_text)
+            SKILL_FILE.read_text()
+            .replace("{{ORIGINAL_RESUME}}", resume_text)
             .replace("{{JD_REQUIREMENTS}}", json.dumps(jd_requirements, indent=2))
             .replace("{{RANKED_PROJECTS}}", json.dumps(ranked_projects, indent=2))
         )
-
         result = await llm.complete(prompt)
-        raw = str(result).strip()
+
+        # Strip everything before the output marker
+        marker = "--- REWRITTEN RESUME ---"
+        if marker in result:
+            result = result.split(marker, 1)[1].strip()
 
         if debug_dir:
-            debug_dir.mkdir(parents=True, exist_ok=True)
-            (debug_dir / "step3_resume_writer.txt").write_text(raw)
+            debug_path = Path(debug_dir) / "step3_resume_writer.txt"
+            debug_path.parent.mkdir(parents=True, exist_ok=True)
+            debug_path.write_text(f"PROMPT:\n{prompt}\n\nRESPONSE:\n{result}")
 
-        try:
-            # Strip markdown code fences if present
-            cleaned = raw
-            if "```" in cleaned:
-                cleaned = cleaned.split("```")[1]
-                if cleaned.startswith("json"):
-                    cleaned = cleaned[4:]
-            parsed = json.loads(cleaned.strip())
-            return {"skills": parsed.get("skills", ""), "projects": parsed.get("projects", "")}
-        except (json.JSONDecodeError, KeyError):
-            return {"skills": raw, "projects": ""}
+        return result

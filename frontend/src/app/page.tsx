@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import { getLoginUrl, fetchMe } from "@/lib/api";
 
 export default function Home() {

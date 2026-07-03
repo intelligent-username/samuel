@@ -1,4 +1,9 @@
+import logging
+from datetime import datetime
+
 import httpx
+
+logger = logging.getLogger(__name__)
 
 GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
 
@@ -64,9 +69,18 @@ async def fetch_user_repos(access_token: str, username: str) -> tuple[list[dict]
     return [_format_repo(r) for r in repos], avatar_url
 
 
-def _format_repo(raw: dict) -> dict:
-    from datetime import datetime
+def _parse_datetime(date_str: str | None) -> datetime | None:
+    """Parse an ISO 8601 datetime string, returning None on failure."""
+    if not date_str:
+        return None
+    try:
+        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        logger.warning("Could not parse datetime string: %s", date_str)
+        return None
 
+
+def _format_repo(raw: dict) -> dict:
     languages = {}
     for edge in (raw.get("languages") or {}).get("edges", []):
         languages[edge["node"]["name"]] = edge["size"]
@@ -86,22 +100,6 @@ def _format_repo(raw: dict) -> dict:
             readme = val["text"]
             break
 
-    pushed_at_str = raw.get("pushedAt")
-    last_push = None
-    if pushed_at_str:
-        try:
-            last_push = datetime.fromisoformat(pushed_at_str.replace("Z", "+00:00"))
-        except Exception:
-            pass
-
-    created_at_str = raw.get("createdAt")
-    repo_created_at = None
-    if created_at_str:
-        try:
-            repo_created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
-        except Exception:
-            pass
-
     return {
         "github_repo_id": raw["databaseId"],
         "name": raw["name"],
@@ -110,11 +108,11 @@ def _format_repo(raw: dict) -> dict:
         "languages": languages,
         "readme_text": readme,
         "topics": topics,
-        "last_push": last_push,
+        "last_push": _parse_datetime(raw.get("pushedAt")),
         "homepage_url": raw.get("homepageUrl"),
         "forks": raw.get("forkCount", 0),
         "is_archived": raw.get("isArchived", False),
         "is_private": raw.get("isPrivate", False),
-        "repo_created_at": repo_created_at,
+        "repo_created_at": _parse_datetime(raw.get("createdAt")),
         "url": raw.get("url"),
     }

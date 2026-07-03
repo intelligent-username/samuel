@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     debug_retention_hours: int = 24
     secure_cookie: bool = False
     openrouter_api_key: str = ""
-    openrouter_key: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
