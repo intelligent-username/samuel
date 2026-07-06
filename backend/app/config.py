@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     secure_cookie: bool = False
     openrouter_api_key: str = ""
 
+    @property
+    def openrouter_key(self) -> str:
+        """Alias for openrouter_api_key for backwards compatibility."""
+        return self.openrouter_api_key
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

@@ -14,36 +14,44 @@ class ResumeWriterSkill:
 
     async def run(
         self,
-        resume_text: str,
+        skills_section: str,
+        projects_section: str,
         jd_requirements: dict,
         ranked_projects: list[dict],
         llm: LLMClient,
         debug_dir: Path | None = None,
-    ) -> str:
-        """Generate a rewritten resume with optimized skills and projects sections.
+    ) -> dict:
+        """Generate rewritten skills and projects sections optimized for the job.
 
         Args:
-            resume_text: The original full resume text.
+            skills_section: The original skills section text from the resume.
+            projects_section: The original projects section text from the resume.
             jd_requirements: Structured requirements from JD Parser.
             ranked_projects: Ranked repositories from Project Matcher.
             llm: An initialized LLM client.
             debug_dir: Optional directory for debug output.
 
         Returns:
-            The rewritten resume text (only skills and projects sections modified).
+            A dict with 'skills' and 'projects' rewritten strings.
         """
         prompt = (
             SKILL_FILE.read_text()
-            .replace("{{ORIGINAL_RESUME}}", resume_text)
+            .replace("{{SKILLS_SECTION}}", skills_section)
+            .replace("{{PROJECTS_SECTION}}", projects_section)
             .replace("{{JD_REQUIREMENTS}}", json.dumps(jd_requirements, indent=2))
             .replace("{{RANKED_PROJECTS}}", json.dumps(ranked_projects, indent=2))
         )
         result = await llm.complete(prompt)
 
-        # Strip everything before the output marker
-        marker = "--- REWRITTEN RESUME ---"
-        if marker in result:
-            result = result.split(marker, 1)[1].strip()
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except (json.JSONDecodeError, TypeError):
+                result = {"skills": result, "projects": ""}
+        elif isinstance(result, dict):
+            result = {"skills": result.get("skills", ""), "projects": result.get("projects", "")}
+        else:
+            result = {"skills": str(result), "projects": ""}
 
         if debug_dir:
             debug_path = Path(debug_dir) / "step3_resume_writer.txt"

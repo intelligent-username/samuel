@@ -1,5 +1,4 @@
 import uuid
-from asyncio import sleep
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,7 +57,14 @@ class Orchestrator:
         yield {"event": "step-done", "data": {"step": "project_matcher", "summary": f"Ranked {len(ranked)} projects by relevance"}}
 
         yield {"event": "step-start", "data": {"step": "resume_writer", "message": "Rewriting resume skills and projects..."}}
-        rewritten = await ResumeWriterSkill().run(sections["skills"], sections["projects"], jd_dict, ranked, self.llm, debug_dir=self.debug_dir)
+        rewritten = await ResumeWriterSkill().run(
+            skills_section=sections["skills"],
+            projects_section=sections["projects"],
+            jd_requirements=jd_dict,
+            ranked_projects=ranked,
+            llm=self.llm,
+            debug_dir=self.debug_dir,
+        )
         rewritten_text = f"## Skills\n\n{rewritten['skills']}\n\n## Projects\n\n{rewritten['projects']}"
         yield {"event": "step-done", "data": {"step": "resume_writer", "summary": "Skills and projects sections rewritten"}}
 

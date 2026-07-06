@@ -1,31 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
-import { fetchMe, logout } from "@/lib/api";
-import type { User } from "@/lib/types";
+import { fetchMe } from "@/lib/api";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
     fetchMe()
-      .then((u) => {
-        setUser(u);
-        setLoading(false);
-      })
+      .then(() => setLoading(false))
       .catch(() => router.push("/"));
   }, [router]);
-
-  const handleLogout = async () => {
-    await logout();
-    router.push("/");
-  };
 
   if (loading) {
     return (
@@ -45,11 +33,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
     );
   }
-
-  const navLinks = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/dashboard/history", label: "History" },
-  ];
 
   return (
     <div style={{ background: "var(--color-background)" }}>

@@ -32,9 +32,9 @@ async def sync_repos(request: Request, db: AsyncSession = Depends(get_db)) -> di
 
     try:
         token = decrypt(user.github_access_token)
-    except Exception:
-        logger.warning("Failed to decrypt token, falling back to raw token")
-        token = user.github_access_token
+    except Exception as e:
+        logger.error("Failed to decrypt GitHub token for user %s: %s", user.id, e)
+        raise HTTPException(status_code=500, detail="Failed to decrypt stored credentials")
 
     try:
         repos_data, avatar_url = await fetch_user_repos(token, user.github_username)
@@ -71,7 +71,7 @@ async def list_repos(request: Request, db: AsyncSession = Depends(get_db)) -> li
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     result = await db.execute(
-        select(Repository).where(Repository.user_id == user_id).order_by(Repository.repo_created_at.desc())
+        select(Repository).where(Repository.user_id == user_id).order_by(Repository.repo_created_at.desc().nulls_last())
     )
     repos = result.scalars().all()
     return [RepositoryResponse.model_validate(r) for r in repos]

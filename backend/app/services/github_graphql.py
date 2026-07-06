@@ -15,7 +15,7 @@ query($username: String!) {
       first: 100,
       ownerAffiliations: OWNER,
       isFork: false,
-      orderBy: {field: PUSHED_AT, direction: DESC}
+      orderBy: {field: CREATED_AT, direction: DESC}
     ) {
       nodes {
         databaseId

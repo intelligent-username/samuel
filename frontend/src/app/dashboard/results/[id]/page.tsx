@@ -4,7 +4,6 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createGenerationStream } from "@/lib/api";
-import type { GenerationStatus } from "@/lib/types";
 
 type StepName =
   | "jd_parser"

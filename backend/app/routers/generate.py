@@ -1,3 +1,4 @@
+import html as html_module
 import uuid
 import logging
 from textwrap import dedent
@@ -167,8 +168,6 @@ async def download_pdf(
 
 def _text_to_html(text: str) -> str:
     """Convert plain resume text to basic HTML for PDF rendering."""
-    import html as html_module
-
     lines = text.split("\n")
     parts = []
     in_ul = False

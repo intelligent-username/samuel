@@ -1,4 +1,5 @@
 notes/
+pt/
 *.md
 !README.md
 !AGENTS.md
