@@ -4,6 +4,7 @@ pt/
 !README.md
 !AGENTS.md
 !backend/app/skills/*.md
+!docs/**
 
 # Environment & Secrets
 .env
