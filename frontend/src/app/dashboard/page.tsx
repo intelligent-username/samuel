@@ -217,6 +217,7 @@ export default function DashboardPage() {
   const [username, setUsername] = useState("");
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Avatar derived from GitHub username — publicly available, no auth needed
   const avatarUrl = username ? `https://github.com/${username}.png?size=40` : null;
@@ -268,9 +269,11 @@ export default function DashboardPage() {
     setRemovedIds((prev) => new Set([...prev, id]));
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadFile = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      flash("Only PDF files are supported", "error");
+      return;
+    }
     flash("Uploading resume...");
     try {
       const resume = await uploadResume(file);
@@ -282,6 +285,18 @@ export default function DashboardPage() {
       flash(e instanceof Error ? e.message : "Upload failed", "error");
     }
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) uploadFile(file);
   };
 
   const handleSaveKey = async () => {
@@ -489,16 +504,34 @@ export default function DashboardPage() {
           {/* Resume + Action */}
           <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
             <Section title="Resume (PDF)">
-              <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-                <button id="upload-resume-btn" onClick={() => fileRef.current?.click()} className="btn">
-                  Upload PDF
-                </button>
-                <input ref={fileRef} type="file" accept=".pdf" onChange={handleUpload} style={{ display: "none" }} />
-                {resumes.length > 0 && (
-                  <select id="resume-select" value={selectedResumeId} onChange={(e) => setSelectedResumeId(e.target.value)} className="select" style={{ maxWidth: "260px" }}>
-                    {resumes.map((r) => <option key={r.id} value={r.id}>{r.original_filename}</option>)}
-                  </select>
-                )}
+              <div
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                style={{
+                  border: `2px dashed ${isDragging ? "var(--color-primary)" : "var(--color-border)"}`,
+                  borderRadius: "10px",
+                  padding: "1.25rem 1rem",
+                  textAlign: "center",
+                  background: isDragging ? "var(--color-muted)" : "transparent",
+                  transition: "border-color 0.15s ease, background 0.15s ease",
+                  cursor: "default",
+                }}
+              >
+                <p style={{ fontSize: "0.8rem", color: "var(--color-muted-fg)", marginBottom: "0.75rem" }}>
+                  {isDragging ? "Drop your PDF here" : "Drag & drop a PDF, or click to browse"}
+                </p>
+                <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+                  <button id="upload-resume-btn" onClick={() => fileRef.current?.click()} className="btn">
+                    Upload PDF
+                  </button>
+                  <input ref={fileRef} type="file" accept=".pdf" onChange={handleUpload} style={{ display: "none" }} />
+                  {resumes.length > 0 && (
+                    <select id="resume-select" value={selectedResumeId} onChange={(e) => setSelectedResumeId(e.target.value)} className="select" style={{ maxWidth: "260px" }}>
+                      {resumes.map((r) => <option key={r.id} value={r.id}>{r.original_filename}</option>)}
+                    </select>
+                  )}
+                </div>
               </div>
             </Section>
 
