@@ -185,7 +185,47 @@ function RepoDetail({ repo, onClose }: { repo: Repository; onClose: () => void }
         {tab === "readme" && (
           <div className="markdown-body" style={{ maxHeight: "440px", overflowY: "auto" }}>
             {repo.readme_text ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkFrontmatter]} rehypePlugins={[rehypeSanitize]}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkFrontmatter]}
+                rehypePlugins={[rehypeSanitize]}
+                components={{
+                  img: ({ node, src, alt, ...props }) => {
+                    if (!src) return null;
+                    let finalSrc = src;
+                    if (!src.startsWith("http://") && !src.startsWith("https://") && !src.startsWith("data:")) {
+                      const cleanPath = src.replace(/^\.?\//, "");
+                      if (repo.url) {
+                        finalSrc = `${repo.url.replace(/\/$/, "")}/raw/HEAD/${cleanPath}`;
+                      }
+                    }
+                    return (
+                      <img
+                        src={finalSrc}
+                        alt={alt || "README image"}
+                        loading="lazy"
+                        style={{
+                          maxWidth: "100%",
+                          height: "auto",
+                          borderRadius: "6px",
+                          margin: "0.75rem 0",
+                          display: "block",
+                          border: "1px solid var(--color-border)",
+                        }}
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.style.display = "none";
+                        }}
+                        {...props}
+                      />
+                    );
+                  },
+                  a: ({ node, children }) => (
+                    <span style={{ color: "var(--color-fg)", cursor: "default" }}>
+                      {children}
+                    </span>
+                  ),
+                }}
+              >
                 {repo.readme_text}
               </ReactMarkdown>
             ) : (
