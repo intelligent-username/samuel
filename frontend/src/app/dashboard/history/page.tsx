@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { fetchGenerations, fetchMe, logout } from "@/lib/api";
 import type { Generation } from "@/lib/types";
+import BorromeanLogo from "@/components/BorromeanLogo";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   pending:   { label: "Pending",   color: "var(--color-muted-fg)" },
@@ -102,16 +103,22 @@ export default function HistoryPage() {
 
         {/* Navigation */}
         <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Link href="/dashboard" style={{ fontSize: "0.75rem", color: "var(--color-primary)", textDecoration: "underline" }}>
-            Dashboard
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="btn btn-ghost btn-xs"
-            style={{ padding: "0.2rem 0.5rem", fontSize: "0.7rem", textDecoration: "underline" }}
-          >
-            Sign out
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+            <BorromeanLogo size={18} />
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Samuel</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <Link href="/dashboard" style={{ fontSize: "0.75rem", color: "var(--color-primary)", textDecoration: "underline" }}>
+              Dashboard
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="btn btn-ghost btn-xs"
+              style={{ padding: "0.2rem 0.5rem", fontSize: "0.7rem", textDecoration: "underline" }}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </aside>
 

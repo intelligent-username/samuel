@@ -44,6 +44,15 @@ async def start_generation(
     result = await db.execute(select(Resume).where(Resume.id == body.resume_id, Resume.user_id == user_id))
     resume = result.scalar_one_or_none()
     if not resume:
+        # Check if resume_id is a previous Generation id
+        gen_res = await db.execute(
+            select(Generation).where(Generation.id == body.resume_id, Generation.user_id == user_id)
+        )
+        gen = gen_res.scalar_one_or_none()
+        if gen:
+            resume = gen.resume
+
+    if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
 
     env_key = settings.openrouter_api_key or settings.openrouter_key
@@ -52,7 +61,7 @@ async def start_generation(
 
     generation = Generation(
         user_id=user_id,
-        resume_id=body.resume_id,
+        resume_id=resume.id,
         job_description_text=body.job_description,
         status="pending",
     )

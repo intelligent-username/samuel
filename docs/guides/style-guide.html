@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Samuel — Style Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ─── Design Tokens (verbatim from globals.css) ─────────────── */
+:root {
+  --color-background: #070709;
+  --color-foreground: #f4f4f5;
+  --color-card: #0f0f13;
+  --color-muted: #141419;
+  --color-muted-fg: #6c6c74;
+  --color-border: #1f1f26;
+  --color-primary: #006699;
+  --color-primary-fg: #ffffff;
+  --color-accent: #FC6A03;
+  --color-accent-fg: #ffffff;
+  --color-destructive: #991b1b;
+  --color-destructive-fg: #ffffff;
+  --nm-low:   0 1px 2px 0 rgba(0,0,0,.5);
+  --nm-mid:   0 4px 6px -1px rgba(0,0,0,.6), 0 2px 4px -1px rgba(0,0,0,.4);
+  --nm-high:  0 10px 15px -3px rgba(0,0,0,.7), 0 4px 6px -2px rgba(0,0,0,.5);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "Outfit", sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-weight: 600; line-height: 1.3; }
+
+a { color: var(--color-primary); text-decoration: none; }
+a:hover { filter: brightness(1.2); }
+
+:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
+
+/* ─── Components (verbatim patterns) ────────────────────────── */
+.nm-card {
+  background: var(--color-card);
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  padding: 1.5rem;
+}
+.nm-card-sm {
+  background: var(--color-card);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  padding: 1rem 1.25rem;
+}
+.nm-inset {
+  background: var(--color-card);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .6rem 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: .875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+  background: var(--color-muted);
+  color: var(--color-foreground);
+}
+.btn:hover:not(:disabled) { background: var(--color-border); border-color: var(--color-primary); }
+.btn:active:not(:disabled) { background: var(--color-background); }
+.btn-primary { background: var(--color-primary); color: var(--color-primary-fg); border-color: var(--color-primary); }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.15); }
+.btn-accent { background: var(--color-accent); color: var(--color-accent-fg); border-color: var(--color-accent); }
+.btn-accent:hover:not(:disabled) { filter: brightness(1.15); }
+.btn-ghost { border-color: transparent; background: transparent; color: var(--color-muted-fg); }
+.btn-ghost:hover:not(:disabled) { background: var(--color-muted); border-color: transparent; }
+.btn-sm { padding: .4rem .875rem; font-size: .8125rem; border-radius: 6px; }
+.btn-xs { padding: .2rem .5rem; font-size: .7rem; border-radius: 4px; }
+.btn-lg { padding: .75rem 1.75rem; font-size: 1rem; border-radius: 10px; }
+
+.input {
+  width: 100%;
+  font-family: inherit;
+  font-size: .9rem;
+  color: var(--color-foreground);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: .65rem 1rem;
+  outline: none;
+  transition: border-color .18s ease;
+}
+.input:focus { border-color: var(--color-primary); }
+.input::placeholder { color: var(--color-muted-fg); opacity: .5; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .2rem .65rem;
+  border-radius: 4px;
+  font-size: .75rem;
+  font-weight: 500;
+  background: var(--color-muted);
+  color: var(--color-muted-fg);
+  border: 1px solid var(--color-border);
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: .875rem;
+  padding: .875rem 1rem;
+  border-radius: 8px;
+  margin-bottom: .5rem;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  transition: border-color .2s ease;
+}
+.step-icon {
+  width: 2rem; height: 2rem;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .9rem;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+}
+.step-icon.pending { background: var(--color-muted); color: var(--color-muted-fg); }
+.step-icon.active  { background: var(--color-primary); color: #fff; border-color: var(--color-primary); animation: pulse 1.4s ease-in-out infinite; }
+.step-icon.done    { background: #1a9e6e; color: #fff; border-color: #1a9e6e; }
+.step-icon.error   { background: var(--color-destructive); color: #fff; border-color: var(--color-destructive); }
+@keyframes pulse {
+  0%, 100% { border-color: var(--color-primary); }
+  50%      { border-color: transparent; }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+.spinner-sm { width: 1rem; height: 1rem; }
+.spinner-lg { width: 2.5rem; height: 2.5rem; border-width: 3px; }
+
+.text-muted { color: var(--color-muted-fg); font-size: .875rem; }
+.font-mono { font-family: "Fira Code", monospace; }
+
+/* ─── Guide layout ──────────────────────────────────────────── */
+.container { max-width: 860px; margin: 0 auto; padding: 3.5rem 1.5rem 5rem; }
+
+.hero { margin-bottom: 3.5rem; }
+.hero h1 { font-size: 2.4rem; font-weight: 800; letter-spacing: -.02em; }
+.hero p { max-width: 46ch; }
+
+section { margin-bottom: 3rem; }
+.section-tag {
+  font-family: "Fira Code", monospace;
+  font-size: .7rem;
+  color: var(--color-primary);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  margin-bottom: .35rem;
+}
+.section h2 { font-size: 1.5rem; margin-bottom: 1rem; }
+.section > p { color: var(--color-muted-fg); max-width: 62ch; margin-bottom: 1rem; }
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: .75rem;
+}
+.swatch { border-radius: 8px; overflow: hidden; border: 1px solid var(--color-border); }
+.swatch .chip-color { height: 64px; }
+.swatch .chip-meta {
+  background: var(--color-card);
+  padding: .55rem .75rem;
+  font-family: "Fira Code", monospace;
+  font-size: .68rem;
+  line-height: 1.7;
+  color: var(--color-muted-fg);
+}
+.swatch .chip-meta strong { display: block; color: var(--color-foreground); font-weight: 500; }
+
+.type-row { padding: .85rem 0; border-bottom: 1px solid var(--color-border); display: flex; align-items: baseline; gap: 1.5rem; flex-wrap: wrap; }
+.type-sample { flex: 1; min-width: 220px; }
+.type-spec { font-family: "Fira Code", monospace; font-size: .68rem; color: var(--color-muted-fg); white-space: nowrap; }
+
+.radius-demo { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+.radius-box {
+  width: 84px; height: 56px;
+  background: var(--color-muted);
+  border: 1px solid var(--color-border);
+  display: grid; place-items: center;
+  font-family: "Fira Code", monospace; font-size: .65rem; color: var(--color-muted-fg);
+}
+
+.shadow-demo { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
+.shadow-box {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  font-family: "Fira Code", monospace; font-size: .68rem; color: var(--color-muted-fg);
+}
+
+.row { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+
+.dos-donts { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 640px) { .dos-donts { grid-template-columns: 1fr; } }
+.dos-donts ul { list-style: none; }
+.dos-donts li { padding: .45rem 0; border-bottom: 1px solid var(--color-border); font-size: .875rem; color: var(--color-muted-fg); }
+.dos-donts li:last-child { border-bottom: none; }
+.dos-donts li b { color: var(--color-foreground); font-weight: 500; }
+.do-list li::before { content: "✓ "; color: #1a9e6e; font-weight: 700; }
+.dont-list li::before { content: "✕ "; color: var(--color-destructive); font-weight: 700; }
+
+footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--color-border); }
+
+/* ─── App-pattern sections ──────────────────────────────────── */
+.pattern-block {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  background: var(--color-muted);
+  font-family: "Fira Code", monospace;
+  font-size: 0.72rem;
+  line-height: 1.8;
+  color: var(--color-muted-fg);
+  white-space: pre;
+  overflow-x: auto;
+  margin-bottom: .75rem;
+}
+.pattern-block b { color: var(--color-primary); font-weight: 500; }
+
+.file-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.file-table th {
+  text-align: left; font-weight: 600; font-size: 0.7rem;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--color-muted-fg);
+  padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--color-border);
+}
+.file-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+.file-table tr:last-child td { border-bottom: none; }
+.file-table code { font-family: "Fira Code", monospace; font-size: 0.74rem; color: var(--color-primary); }
+
+.state-row { display: flex; align-items: center; gap: 1rem; padding: 0.6rem 0; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
+.state-row:last-child { border-bottom: none; }
+.state-label { font-size: 0.78rem; font-weight: 500; min-width: 150px; }
+.state-desc { color: var(--color-muted-fg); font-size: 0.78rem; flex: 1; min-width: 220px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="hero">
+    <p class="section-tag">Samuel · Design System</p>
+    <h1>Style Guide</h1>
+    <p class="text-muted">Dark-only. Flat neumorphic. Two brand hues. This page is rendered entirely with the project's own tokens — everything you see is the theme, demonstrated live. Sections 01–09 cover the token layer (<span class="font-mono" style="font-size:.8rem">globals.css</span>); sections 10–14 document how the app's pages actually use it.</p>
+  </header>
+
+  <!-- Philosophy -->
+  <section class="section nm-card">
+    <p class="section-tag">01</p>
+    <h2>Design Philosophy</h2>
+    <p>Samuel's UI rests on three principles:</p>
+    <p><b style="color:var(--color-foreground)">Quiet darkness.</b> A near-black canvas (#070709) with a slightly lifted card layer (#0f0f13). Depth comes from subtle elevation steps — never gradients or glows.</p>
+    <p><b style="color:var(--color-foreground)">Two accents, used sparingly.</b> Deep blue for primary actions and focus; orange only where the user must notice something. Everything else is neutral.</p>
+    <p><b style="color:var(--color-foreground)">Flat neumorphism.</b> Soft, low-opacity shadows (<span class="font-mono">--nm-low/mid/high</span>) suggest elevation without skeuomorphism. Inset shadows are disabled (<span class="font-mono">--nm-inset: none</span>). Borders do most of the structural work.</p>
+  </section>
+
+  <!-- Colors -->
+  <section class="section">
+    <p class="section-tag">02</p>
+    <h2>Color Palette</h2>
+
+    <div class="swatch-grid" style="margin-bottom:1rem">
+      <div class="swatch"><div class="chip-color" style="background:#006699"></div><div class="chip-meta"><strong>--color-primary</strong>#006699<br>deep blue · actions, links, focus</div></div>
+      <div class="swatch"><div class="chip-color" style="background:#FC6A03"></div><div class="chip-meta"><strong>--color-accent</strong>#FC6A03<br>orange · highlight actions</div></div>
+      <div class="swatch"><div class="chip-color" style="background:#991b1b"></div><div class="chip-meta"><strong>--color-destructive</strong>#991b1b<br>errors, destructive intent</div></div>
+      <div class="swatch"><div class="chip-color" style="background:#1a9e6e"></div><div class="chip-meta"><strong>success (literal)</strong>#1a9e6e<br>step-done icons only</div></div>
+    </div>
+
+    <div class="swatch-grid">
+      <div class="swatch"><div class="chip-color" style="background:#070709"></div><div class="chip-meta"><strong>--color-background</strong>#070709</div></div>
+      <div class="swatch"><div class="chip-color" style="background:#0f0f13"></div><div class="chip-meta"><strong>--color-card</strong>#0f0f13</div></div>
+      <div class="swatch"><div class="chip-color" style="background:#141419"></div><div class="chip-meta"><strong>--color-muted</strong>#141419</div></div>
+      <div class="swatch"><div class="chip-color" style="background:#1f1f26"></div><div class="chip-meta"><strong>--color-border</strong>#1f1f26</div></div>
+      <div class="swatch"><div class="chip-color" style="background:#6c6c74"></div><div class="chip-meta"><strong>--color-muted-fg</strong>#6c6c74</div></div>
+      <div class="swatch"><div class="chip-color" style="background:#f4f4f5"></div><div class="chip-meta"><strong>--color-foreground</strong>#f4f4f5</div></div>
+    </div>
+  </section>
+
+  <!-- Typography -->
+  <section class="section">
+    <p class="section-tag">03</p>
+    <h2>Typography</h2>
+    <div class="nm-card">
+      <div class="type-row"><div class="type-sample"><h1>H1 — Heading</h1></div><div class="type-spec">Outfit 600 · 2rem · lh 1.3</div></div>
+      <div class="type-row"><div class="type-sample"><h2>H2 — Heading</h2></div><div class="type-spec">Outfit 600 · 1.5rem</div></div>
+      <div class="type-row"><div class="type-sample"><h3>H3 — Heading</h3></div><div class="type-spec">Outfit 600 · 1.125rem</div></div>
+      <div class="type-row"><div class="type-sample"><p>Body copy. Outfit carries the entire UI, weights 300–800.</p></div><div class="type-spec">Outfit 400 · 1rem · lh 1.6</div></div>
+      <div class="type-row"><div class="type-sample"><p class="text-muted">Muted secondary text for hints and labels.</p></div><div class="type-spec">muted-fg · .875rem</div></div>
+      <div class="type-row" style="border:none"><div class="type-sample"><code class="font-mono" style="font-size:.82rem;background:var(--color-muted);padding:.15em .4em;border-radius:3px">const mono = "Fira Code"</code></div><div class="type-spec">Fira Code 400/500 · code, IDs, meta</div></div>
+    </div>
+  </section>
+
+  <!-- Spacing & Radii -->
+  <section class="section">
+    <p class="section-tag">04</p>
+    <h2>Spacing &amp; Radii</h2>
+    <div class="radius-demo">
+      <div class="radius-box" style="border-radius:12px">12px<br>cards</div>
+      <div class="radius-box" style="border-radius:10px">10px<br>btn-lg</div>
+      <div class="radius-box" style="border-radius:8px">8px<br>btn/input/sm card</div>
+      <div class="radius-box" style="border-radius:6px">6px<br>btn-sm</div>
+      <div class="radius-box" style="border-radius:4px">4px<br>chips/xs</div>
+    </div>
+    <p style="margin-top:1rem">Spacing follows a simple scale: <span class="font-mono" style="font-size:.75rem">0.5 / 0.75 / 1 / 1.25 / 1.5 / 2rem</span>. Card padding is 1.5rem; small cards 1rem × 1.25rem. Section rhythm is 2rem.</p>
+  </section>
+
+  <!-- Shadows -->
+  <section class="section">
+    <p class="section-tag">05</p>
+    <h2>Shadows / Elevation</h2>
+    <p>Three flat levels plus a disabled inset token. Borders carry structure; shadows add just enough lift.</p>
+    <div class="shadow-demo">
+      <div class="shadow-box" style="box-shadow:var(--nm-low)">--nm-low<br>0 1px 2px rgba(0,0,0,.5)</div>
+      <div class="shadow-box" style="box-shadow:var(--nm-mid)">--nm-mid<br>0 4px 6px -1px …</div>
+      <div class="shadow-box" style="box-shadow:var(--nm-high)">--nm-high<br>0 10px 15px -3px …</div>
+      <div class="shadow-box" style="box-shadow:none;border-style:dashed">--nm-inset<br>none — always</div>
+    </div>
+  </section>
+
+  <!-- Components -->
+  <section class="section">
+    <p class="section-tag">06</p>
+    <h2>Components</h2>
+
+    <div class="nm-card" style="margin-bottom:1rem">
+      <p class="text-muted" style="margin-bottom:.75rem">Buttons</p>
+      <div class="row">
+        <button class="btn btn-primary">Primary</button>
+        <button class="btn btn-accent">Accent</button>
+        <button class="btn">Default</button>
+        <button class="btn btn-ghost">Ghost</button>
+        <button class="btn btn-primary btn-sm">Small</button>
+        <button class="btn btn-xs">Extra small</button>
+        <button class="btn btn-lg">Large</button>
+        <button class="btn" disabled>Disabled</button>
+      </div>
+    </div>
+
+    <div class="dashboard-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-bottom:1rem">
+      <div>
+        <p class="text-muted" style="margin-bottom:.5rem">Inputs</p>
+        <input class="input" placeholder="Placeholder…" style="margin-bottom:.5rem">
+        <textarea class="input" rows="2" placeholder="Textarea…"></textarea>
+      </div>
+      <div>
+        <p class="text-muted" style="margin-bottom:.5rem">Chips &amp; spinner</p>
+        <div class="row" style="margin-bottom:1rem">
+          <span class="chip">TypeScript</span>
+          <span class="chip">FastAPI</span>
+          <span class="chip">pgvector</span>
+        </div>
+        <div class="row">
+          <span class="spinner spinner-sm"></span>
+          <span class="spinner spinner-lg"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="nm-inset" style="padding:1rem;margin-bottom:1rem">
+      <p class="text-muted" style="margin-bottom:.75rem">Step indicators</p>
+      <div class="step-item">
+        <div class="step-icon done">✓</div>
+        <div><b style="font-weight:600;font-size:.875rem">JD Parser</b><br><span class="text-muted">Requirements extracted</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-icon active">2</div>
+        <div><b style="font-weight:600;font-size:.875rem">Project Matcher</b><br><span class="text-muted">Ranking repositories…</span></div>
+      </div>
+      <div class="step-item">
+        <div class="step-icon pending">3</div>
+        <div><b style="font-weight:600;font-size:.875rem">Resume Writer</b><br><span class="text-muted">Waiting</span></div>
+      </div>
+      <div class="step-item" style="margin-bottom:0">
+        <div class="step-icon error">!</div>
+        <div><b style="font-weight:600;font-size:.875rem">ATS Checker</b><br><span class="text-muted">Failed — retry available</span></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="nm-card-sm" style="flex:1;min-width:200px"><p style="font-weight:600;font-size:.875rem">.nm-card-sm</p><p class="text-muted">8px radius · 1rem padding</p></div>
+      <div class="nm-card-sm" style="flex:1;min-width:200px"><p style="font-weight:600;font-size:.875rem">.nm-card</p><p class="text-muted">12px radius · 1.5rem padding</p></div>
+    </div>
+  </section>
+
+  <!-- Interaction & Motion -->
+  <section class="section nm-card">
+    <p class="section-tag">07</p>
+    <h2>Interaction &amp; Motion</h2>
+    <ul style="list-style:none;color:var(--color-muted-fg);font-size:.9rem">
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Filled button hover</b> — <span class="font-mono" style="font-size:.78rem">filter: brightness(1.15)</span>, no shadow change, no scale.</li>
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Outline hover</b> — background shifts muted → border color, border takes primary. <span class="font-mono" style="font-size:.78rem">~0.15–0.2s ease</span>.</li>
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Opacity reveal</b> — destructive/signout controls are invisible until their parent is hovered (<span class="font-mono" style="font-size:.78rem">opacity 0 → 1, 0.15–0.2s</span>).</li>
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Dim-until-hover</b> — long lists sit at <span class="font-mono" style="font-size:.78rem">opacity 0.72 → 1</span> on hover/focus-within.</li>
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Active step</b> — pulsing primary border, <span class="font-mono" style="font-size:.78rem">pulse 1.4s infinite</span>. Spinner rotates at 0.7s linear.</li>
+      <li style="padding:.45rem 0"><b style="color:var(--color-foreground);font-weight:500">Focus ring</b> — <span class="font-mono" style="font-size:.78rem">outline: 2px solid primary; outline-offset: 2px</span>. Never removed.</li>
+    </ul>
+  </section>
+
+  <!-- Layout -->
+  <section class="section nm-card">
+    <p class="section-tag">08</p>
+    <h2>Layout</h2>
+    <p>Sidebar + main shell. Sidebar is <span class="font-mono" style="font-size:.78rem">fixed 330px at ≥1280px</span>, <span class="font-mono" style="font-size:.78rem">sticky ~320px at ≥960px</span>, stacked above main below that. Main content caps at <span class="font-mono" style="font-size:.78rem">960px</span>; generic container at <span class="font-mono" style="font-size:.78rem">1024px</span> with 1.5rem inline padding.</p>
+  </section>
+
+  <!-- Do's & Don'ts -->
+  <section class="section">
+    <p class="section-tag">09</p>
+    <h2>Do's &amp; Don'ts</h2>
+    <div class="dos-donts">
+      <div class="nm-card-sm">
+        <p style="font-weight:600;margin-bottom:.5rem;color:#1a9e6e">Do</p>
+        <ul class="do-list">
+          <li><b>Reuse existing tokens</b> — every color, radius, shadow already exists in globals.css.</li>
+          <li><b>Stay flat</b> — borders + flat shadows only.</li>
+          <li><b>Use accent orange sparingly</b> — one highlight action per view.</li>
+          <li><b>Keep transitions short</b> — 0.15–0.2s ease, nothing springy.</li>
+          <li><b>Demo the theme</b> — when in doubt, mirror this guide's markup.</li>
+        </ul>
+      </div>
+      <div class="nm-card-sm">
+        <p style="font-weight:600;margin-bottom:.5rem;color:var(--color-destructive)">Don't</p>
+        <ul class="dont-list">
+          <li><b>Never add gradients</b> — depth comes from elevation steps, not blends.</li>
+          <li><b>Never introduce new hues</b> — blue, orange, red, green. That's all.</li>
+          <li><b>No light mode</b> — the theme is dark-only by design.</li>
+          <li><b>No inset shadows</b> — <span class="font-mono" style="font-size:.72rem">--nm-inset</span> stays <span class="font-mono" style="font-size:.72rem">none</span>.</li>
+          <li><b>No decorative animation</b> — motion exists to communicate state.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Page Composition -->
+  <section class="section">
+    <p class="section-tag">10</p>
+    <h2>Page-Level Composition Patterns</h2>
+    <p>Four page archetypes exist. All share the same header rhythm: an 800-weight h1 (2.5rem on dashboard/history, smaller elsewhere), a centered <span class="font-mono" style="font-size:.78rem">.text-muted</span> subtitle, then a 3rem gap before content.</p>
+
+    <div class="nm-card" style="margin-bottom:1rem">
+      <p style="font-weight:600;font-size:.9rem;margin-bottom:.35rem">Login — <span class="font-mono" style="font-size:.72rem">app/page.tsx</span></p>
+      <p class="text-muted" style="margin-bottom:.75rem">Full-viewport centered column, max-width 480px. Logo tile (72px, primary bg, 12px radius) → title → muted blurb → login card → feature chips.</p>
+      <div class="pattern-block">&lt;main&gt; flex center, min-height 100vh
+  &lt;div&gt; max-width 480px, text-center
+    [logo tile]  [h1 "Samuel"]  [.text-muted tagline]
+    .nm-card  padding 2rem   ← sign-in card, one btn-primary btn-lg
+    [chip row]  gap .5rem, centered, wrapped</div>
+      <p class="text-muted">Session check first: while <span class="font-mono" style="font-size:.72rem">checking</span>, the whole page renders as a single <span class="font-mono" style="font-size:.72rem">spinner-lg</span>.</p>
+    </div>
+
+    <div class="nm-card" style="margin-bottom:1rem">
+      <p style="font-weight:600;font-size:.9rem;margin-bottom:.35rem">Dashboard / History — sidebar shell</p>
+      <p class="text-muted" style="margin-bottom:.75rem">Both use <span class="font-mono" style="font-size:.72rem">.page-shell</span> + <span class="font-mono" style="font-size:.72rem">.sidebar-layout</span> + <span class="font-mono" style="font-size:.72rem">.main-layout</span> (layout classes from globals.css; see §08 for the responsive behavior). The sidebar ends with a pinned footer row separated by a top border: brand wordmark left, nav link right.</p>
+      <div class="pattern-block">.page-shell
+  aside.sidebar-layout        ← Section cards + margin-top:auto footer
+    .nm-card  "GitHub Repositories"  (+ username-tag in header)
+    .nm-card  "OpenRouter API Key"
+    [footer row]  border-top · Samuel ⇄ History/Dashboard link
+  div.main-layout             ← max-width 960px, centered, align-items:center
+    h1 800 weight, centered   ← e.g. "Samuel: Your Resume Tailor"
+    p.text-muted centered     ← 3rem bottom margin
+    .dashboard-grid           ← 1fr 1fr ≥768px, gap 2rem
+      Section "Job Description"     |  Section "Resume (PDF)" + generate CTA</div>
+      <p class="text-muted">History mirrors this exactly with "Workspace Status" in the sidebar and a single-column list (max-width 720px) of clickable <span class="font-mono" style="font-size:.72rem">.nm-card</span> rows in main.</p>
+    </div>
+
+    <div class="nm-card">
+      <p style="font-weight:600;font-size:.9rem;margin-bottom:.35rem">Results — <span class="font-mono" style="font-size:.72rem">app/dashboard/results/[id]/page.tsx</span></p>
+      <p class="text-muted" style="margin-bottom:.75rem">No sidebar. A fixed right-hand timeline panel overlays the page while generating; main content is a centered 760px column that pads right by panel width and animates it away on collapse.</p>
+      <div class="pattern-block">[fixed panel] width 220px, right edge, .color-card bg, border-left
+  header: uppercase status label ("Generating"/"Complete"/"Error") + ✕
+  ProgressBar: 2px track (--color-border), primary fill, width % of done steps
+  vertical timeline: 8px StepDot + 1px connector per step
+  [connection error footer]: destructive text + full-width Retry btn
+
+main column, max-width 760px, padding-right adjusts when panel visible
+  h1 state headline  →  .text-muted subline  →  content cards:
+    {!done}  nm-card "Working…" + spinner-sm
+    {done}   nm-card ATS score (2.25rem/800, color-coded)
+             nm-card rewritten resume in &lt;pre&gt;
+             action row: View History (.btn-sm) + ghost back button</div>
+    </div>
+  </section>
+
+  <!-- Styling approach -->
+  <section class="section nm-card">
+    <p class="section-tag">11</p>
+    <h2>Styling Approach (No Tailwind Runtime)</h2>
+    <p>Despite Tailwind appearing in project docs, the frontend has <b style="color:var(--color-foreground)">no Tailwind dependency or config file</b>. There is no <span class="font-mono" style="font-size:.78rem">tailwind.config.*</span>; PostCSS exists only transitively via Next.js. Styling is two mechanisms only:</p>
+    <ul style="list-style:none;color:var(--color-muted-fg);font-size:.875rem;margin-bottom:.75rem">
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Custom classes from globals.css</b> — <span class="font-mono" style="font-size:.78rem">.btn .btn-* .input .textarea .select .chip .step-item .step-icon .spinner .text-muted .text-xs .text-sm .font-mono .nm-card .nm-card-sm .nm-inset</span>, plus layout classes (<span class="font-mono" style="font-size:.78rem">.page-shell .sidebar-layout .main-layout .dashboard-grid .container .custom-scrollbar .markdown-body .username-container</span>). These are the component vocabulary — always prefer them.</li>
+      <li style="padding:.45rem 0"><b style="color:var(--color-foreground);font-weight:500">Inline <span style="font-family:'Fira Code',monospace;font-size:.78rem">style={}</span> props</b> — used for everything page-specific: layout tweaks, gaps, font sizes, hover handlers (<span class="font-mono" style="font-size:.78rem">onMouseEnter</span> border/background swaps). One-off values reference tokens via <span class="font-mono" style="font-size:.78rem">var(--color-*)</span>, never raw hex.</li>
+    </ul>
+    <p><b style="color:var(--color-foreground)">Convention:</b> if a pattern repeats across pages, it lives (or should be treated as living) in globals.css. Inline styles are for positioning and micro-adjustments around those classes — not for re-specifying colors, radii, or shadows.</p>
+  </section>
+
+  <!-- State & feedback -->
+  <section class="section">
+    <p class="section-tag">12</p>
+    <h2>State &amp; Feedback Patterns</h2>
+    <p>As implemented across pages. Status colors are strict: pending = <span class="font-mono" style="font-size:.74rem">muted-fg/border</span>, running = <span class="font-mono" style="font-size:.74rem">primary</span>, success = <span class="font-mono" style="font-size:.74rem">#1a9e6e</span> (literal green), error = <span class="font-mono" style="font-size:.74rem">destructive</span>.</p>
+    <div class="nm-card">
+      <div class="state-row">
+        <span class="state-label">Async buttons</span>
+        <span class="state-desc"><span class="font-mono" style="font-size:.72rem">disabled</span> + spinner-sm inside replaces icon/text: <span class="font-mono" style="font-size:.72rem">Syncing... · Redirecting… · Starting generation...</span>. Disabled opacity is 0.4 (globals).</span>
+      </div>
+      <div class="state-row">
+        <span class="state-label">Route-level loading</span>
+        <span class="state-desc">Whole viewport centers a <span class="font-mono" style="font-size:.72rem">spinner-lg</span> (login check, dashboard auth gate, history fetch). Optionally with "Loading…" beneath.</span>
+      </div>
+      <div class="state-row">
+        <span class="state-label">SSE step timeline</span>
+        <span class="state-desc">Two renderings exist: card-style <span class="font-mono" style="font-size:.72rem">.step-item/.step-icon</span> (pending ✓/number/! states) and the results-page dot timeline (§10). Both map to the same four statuses driven by <span class="font-mono" style="font-size:.72rem">step-start / step-done / step-error / done</span> events.</span>
+      </div>
+      <div class="state-row">
+        <span class="state-label">Flash messages</span>
+        <span class="state-desc">Dashboard-only inline banner: <span class="font-mono" style="font-size:.72rem">.nm-card</span>-styled box, text colored by type (info = muted-fg, success = #1a9e6e, error = destructive). No toasts anywhere.</span>
+      </div>
+      <div class="state-row">
+        <span class="state-label">Status chips</span>
+        <span class="state-desc">History rows show generation status as a recolored <span class="font-mono" style="font-size:.72rem">.chip</span> (transparent bg, status-colored text), plus a plain "ATS n/100" chip when a report exists.</span>
+      </div>
+      <div class="state-row">
+        <span class="state-label">Destructive affordances</span>
+        <span class="state-desc">Kept nearly invisible until needed: repo remove × appears on row hover, turns destructive on its own hover; Sign out slides in next to the username pill on hover (§07 reveal patterns).</span>
+      </div>
+      <div class="state-row">
+        <span class="state-label">Empty state</span>
+        <span class="state-desc">History with zero generations: centered .nm-card, large muted stroke-icon (envelope SVG), heading, muted copy, one accent CTA ("Start generating").</span>
+      </div>
+      <div class="state-row">
+        <span class="state-label">Connection loss</span>
+        <span class="state-desc">Results panel shows destructive "Connection lost." above a full-width default .btn Retry that resets steps and restarts the EventSource.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Iconography & content -->
+  <section class="section nm-card">
+    <p class="section-tag">13</p>
+    <h2>Iconography &amp; Content Conventions</h2>
+    <ul style="list-style:none;color:var(--color-muted-fg);font-size:.875rem">
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Inline SVG only.</b> No icon library or emoji icons. Icons are hand-inlined 24-viewbox SVGs (GitHub mark, document logo, star, envelope) sized 10–40px, colored via <span class="font-mono" style="font-size:.76rem">fill/stroke="currentColor"</span> or explicit token vars.</li>
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Text glyphs for controls.</b> Close/remove is <span class="font-mono" style="font-size:.78rem">✕</span> or <span class="font-mono" style="font-size:.78rem">×</span>; step done is <span class="font-mono" style="font-size:.78rem">✓</span>; external links append <span class="font-mono" style="font-size:.78rem">↗</span>; back navigation prefixes <span class="font-mono" style="font-size:.78rem">←</span>.</li>
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Star counts</b> use a literal ★ character at ~0.7rem in muted-fg, never an SVG star in list rows.</li>
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Labels.</b> Section/card labels are small caps: 0.65–0.72rem, weight 600–700, uppercase, letter-spacing 0.05–0.08em, muted-fg.</li>
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Truncation.</b> Long strings (repo names, JD snippets, filenames) use ellipsis or line-clamp rather than wrapping.</li>
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Dates/times.</b> Rendered via <span class="font-mono" style="font-size:.78rem">toLocaleDateString/toLocaleString</span>, no custom formatting.</li>
+      <li style="padding:.45rem 0;border-bottom:1px solid var(--color-border)"><b style="color:var(--color-foreground);font-weight:500">Language colors.</b> The one sanctioned exception to "no new hues": GitHub's standard per-language hexes (<span class="font-mono" style="font-size:.76rem">LANG_COLORS</span> in dashboard page.tsx) power 4px language bars and 6–8px dots. Do not extend this exception to anything else.</li>
+      <li style="padding:.45rem 0"><b style="color:var(--color-foreground);font-weight:500">Markdown rendering.</b> READMEs render through ReactMarkdown into <span class="font-mono" style="font-size:.78rem">.markdown-body</span> (globals.css owns all its typography). Rewritten resumes display as plain pre-wrapped text instead.</li>
+    </ul>
+  </section>
+
+  <!-- File map -->
+  <section class="section">
+    <p class="section-tag">14</p>
+    <h2>Frontend File Map</h2>
+    <div class="nm-card" style="overflow-x:auto">
+      <table class="file-table">
+        <tr><th>File</th><th>Owns</th></tr>
+        <tr><td><code>src/app/globals.css</code></td><td>The entire theme: tokens, dark values, resets, all custom classes, layout shells, markdown styles. Single source of truth.</td></tr>
+        <tr><td><code>src/app/layout.tsx</code></td><td>Applies <code>class="dark"</code> to &lt;html&gt;, loads fonts via Google Fonts preconnect + globals import, sets metadata.</td></tr>
+        <tr><td><code>src/app/page.tsx</code></td><td>Login page: centered hero composition, spinner gate, GitHub OAuth button, feature chips.</td></tr>
+        <tr><td><code>src/app/dashboard/layout.tsx</code></td><td>Auth gate for /dashboard/*: spinner while checking session, redirect to / on failure.</td></tr>
+        <tr><td><code>src/app/dashboard/page.tsx</code></td><td>Sidebar shell usage, Section wrapper component (local), repo list + detail modal, language bar, flash messages, generate CTA. Defines LANG_COLORS.</td></tr>
+        <tr><td><code>src/app/dashboard/results/[id]/page.tsx</code></td><td>SSE consumption, StepDot/ProgressBar components (local), slide-in timeline panel, ATS score + resume preview cards.</td></tr>
+        <tr><td><code>src/app/dashboard/history/page.tsx</code></td><td>History list rows with status chips, workspace stats sidebar, empty state. Local STATUS_META color mapping.</td></tr>
+        <tr><td><code>src/app/auth/login|callback/</code></td><td>OAuth entry/callback routes (thin, token-exchange focused).</td></tr>
+        <tr><td><code>src/lib/api.ts</code></td><td>All backend calls incl. <code>createGenerationStream</code> (EventSource factory). No styling.</td></tr>
+        <tr><td><code>src/lib/types.ts</code></td><td>TypeScript mirrors of backend schemas (Repository, Resume, Generation…). Data-display shapes derive from here.</td></tr>
+        <tr><td><code>src/components/</code></td><td>Does not exist. All components are defined locally within their page files.</td></tr>
+      </table>
+    </div>
+  </section>
+    Samuel Style Guide — documentation of <span class="font-mono" style="font-size:.72rem">frontend/src/app/globals.css</span> and its usage across <span class="font-mono" style="font-size:.72rem">frontend/src/app/**</span>. Preserve what exists.
+  </footer>
+
+</div>
+</body>
+</html>

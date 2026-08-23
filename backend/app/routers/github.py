@@ -71,7 +71,7 @@ async def list_repos(request: Request, db: AsyncSession = Depends(get_db)) -> li
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     result = await db.execute(
-        select(Repository).where(Repository.user_id == user_id).order_by(Repository.repo_created_at.desc().nulls_last())
+        select(Repository).where(Repository.user_id == user_id).order_by(Repository.last_push.desc().nulls_last())
     )
     repos = result.scalars().all()
     return [RepositoryResponse.model_validate(r) for r in repos]

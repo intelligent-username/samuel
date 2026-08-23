@@ -10,9 +10,10 @@ import remarkFrontmatter from "remark-frontmatter";
 
 import {
   syncRepos, listRepos, uploadResume, saveApiKey,
-  getKeyStatus, listResumes, startGeneration, fetchMe, logout,
+  getKeyStatus, listResumes, startGeneration, fetchMe, logout, fetchGenerations,
 } from "@/lib/api";
 import type { Repository, Resume } from "@/lib/types";
+import BorromeanLogo from "@/components/BorromeanLogo";
 
 type Message = { text: string; type: "info" | "success" | "error" };
 
@@ -222,24 +223,48 @@ export default function DashboardPage() {
   // Avatar derived from GitHub username — publicly available, no auth needed
   const avatarUrl = username ? `https://github.com/${username}.png?size=40` : null;
 
-  // Filter: hide repos with no language data, and any manually removed
-  const visibleRepos = repos.filter(
-    (r) => !removedIds.has(r.id) &&
-           r.languages && Object.values(r.languages).some((v) => v > 0)
-  );
+  // Filter: hide repos with no language data, and any manually removed; sort by last push
+  const visibleRepos = repos
+    .filter(
+      (r) => !removedIds.has(r.id) &&
+             r.languages && Object.values(r.languages).some((v) => v > 0)
+    )
+    .sort((a, b) => {
+      const aTime = a.last_push ? new Date(a.last_push).getTime() : 0;
+      const bTime = b.last_push ? new Date(b.last_push).getTime() : 0;
+      return bTime - aTime;
+    });
+
+  const uploadedResumes = resumes.filter((r) => !r.is_generated);
+  const generatedResumes = resumes.filter((r) => r.is_generated);
+  const selectedResume = resumes.find((r) => r.id === selectedResumeId);
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([
       listRepos(),
       listResumes(),
+      fetchGenerations().catch(() => []),
       getKeyStatus(),
       fetchMe().catch(() => null),
-    ]).then(([r, res, k, u]) => {
+    ]).then(([r, res, gens, k, u]) => {
       if (cancelled) return;
       setRepos(r);
-      setResumes(res);
-      if (res.length > 0) setSelectedResumeId(res[0].id);
+      const inMemoryGenResumes: Resume[] = (gens || [])
+        .filter((g) => g.status === "completed" && g.rewritten_resume_text)
+        .map((g) => {
+          const date = new Date(g.created_at);
+          const timeStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+          return {
+            id: g.id,
+            original_filename: `Tailored Resume (${timeStr})`,
+            is_generated: true,
+            created_at: g.created_at,
+          };
+        });
+      const combined = [...res, ...inMemoryGenResumes];
+      setResumes(combined);
+      if (combined.length > 0) setSelectedResumeId(combined[0].id);
       setHasKey(k.has_key);
       setEnvConfigured(k.env_configured);
       if (u) setUsername(u.github_username);
@@ -277,8 +302,11 @@ export default function DashboardPage() {
     flash("Uploading resume...");
     try {
       const resume = await uploadResume(file);
-      const all = await listResumes();
-      setResumes(all);
+      const freshUploaded = await listResumes();
+      setResumes((prev) => {
+        const genOnly = prev.filter((p) => p.is_generated);
+        return [...freshUploaded, ...genOnly];
+      });
       setSelectedResumeId(resume.id);
       flash(`Uploaded: ${file.name}`, "success");
     } catch (e: unknown) {
@@ -338,8 +366,8 @@ export default function DashboardPage() {
     msg?.type === "success" ? "#1a9e6e" : msg?.type === "error" ? "var(--color-destructive)" : "var(--color-muted-fg)";
 
   const usernameTag = username ? (
-    <div className="username-container" style={{ marginLeft: "auto" }}>
-      <div className="nm-card-sm" style={{ padding: "0.2rem 0.5rem", display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem", borderRadius: "4px" }}>
+    <div className="username-container" style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", whiteSpace: "nowrap" }}>
+      <div className="nm-card-sm" style={{ padding: "0.2rem 0.5rem", display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem", borderRadius: "4px", whiteSpace: "nowrap" }}>
         {avatarUrl ? (
           <img
             src={avatarUrl}
@@ -357,7 +385,7 @@ export default function DashboardPage() {
           href={`https://github.com/${username}?tab=repositories`}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: "inherit", textDecoration: "none" }}
+          style={{ color: "inherit", textDecoration: "none", whiteSpace: "nowrap" }}
         >
           {username}
         </a>
@@ -365,7 +393,7 @@ export default function DashboardPage() {
       <button
         onClick={handleLogout}
         className="btn btn-ghost btn-xs signout-btn"
-        style={{ padding: "0.2rem 0.5rem", fontSize: "0.7rem" }}
+        style={{ padding: "0.15rem 0.4rem", fontSize: "0.7rem", whiteSpace: "nowrap" }}
       >
         Sign out
       </button>
@@ -377,9 +405,14 @@ export default function DashboardPage() {
       {selectedRepo && <RepoDetail repo={selectedRepo} onClose={() => setSelectedRepo(null)} />}
 
       {/* Left Sidebar */}
-      <aside className="sidebar-layout custom-scrollbar">
+      <aside className="sidebar-layout">
         {/* GitHub Repositories */}
-        <Section title="GitHub Repositories" titleExtra={usernameTag}>
+        <Section
+          title="GitHub Repositories"
+          titleExtra={usernameTag}
+          subtitle="These will be used as the source material for the projects section of your resume. You may remove individual repos if you wish."
+          className="repo-section-card"
+        >
           <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
             <button id="sync-repos-btn" onClick={handleSync} disabled={syncing} className="btn btn-primary btn-sm">
               {syncing && <span className="spinner spinner-sm" />}
@@ -391,10 +424,7 @@ export default function DashboardPage() {
           </div>
 
           {visibleRepos.length > 0 && (
-            <div
-              className="nm-inset custom-scrollbar repo-list-container"
-              style={{ marginTop: "1rem", maxHeight: "320px", overflowY: "auto" }}
-            >
+            <div className="nm-inset custom-scrollbar repo-list-container">
               {visibleRepos.map((r) => (
                 <div
                   key={r.id}
@@ -414,7 +444,12 @@ export default function DashboardPage() {
                       {r.name}
                     </span>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0, marginLeft: "0.5rem" }}>
-                      <span style={{ fontSize: "0.7rem", color: "var(--color-muted-fg)" }}>★ {r.stars}</span>
+                      <span style={{ fontSize: "0.7rem", color: "var(--color-muted-fg)", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.75 }}>
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                        {r.stars}
+                      </span>
                       <button
                         className="repo-remove-btn"
                         onClick={(e) => handleRemove(r.id, e)}
@@ -474,7 +509,10 @@ export default function DashboardPage() {
 
         {/* Footer */}
         <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Samuel</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+            <BorromeanLogo size={18} />
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Samuel</span>
+          </div>
           <Link href="/dashboard/history" style={{ fontSize: "0.75rem", color: "var(--color-primary)", textDecoration: "underline" }}>History</Link>
         </div>
       </aside>
@@ -482,7 +520,7 @@ export default function DashboardPage() {
       {/* Main content */}
       <div className="main-layout">
         <h1 style={{ fontSize: "2.5rem", fontWeight: 800, textAlign: "center", marginBottom: "0.5rem", letterSpacing: "-0.025em" }}>
-          Resume Personalizer
+          Samuel: Your Resume Tailor
         </h1>
         <p className="text-muted" style={{ textAlign: "center", marginBottom: "3rem", fontSize: "0.9rem" }}>
           Paste a job description and upload your resume to generate a tailored version.
@@ -503,7 +541,63 @@ export default function DashboardPage() {
 
           {/* Resume + Action */}
           <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
-            <Section title="Resume (PDF)">
+            <Section
+              title="Resume (PDF)"
+              titleRight={
+                resumes.length > 0 ? (
+                  <select
+                    id="resume-select"
+                    value={selectedResumeId}
+                    onChange={(e) => setSelectedResumeId(e.target.value)}
+                    className="select"
+                    style={{
+                      maxWidth: "260px",
+                      marginLeft: "0.75rem",
+                      padding: "0.3rem 0.75rem",
+                      fontSize: "0.8rem",
+                      height: "auto",
+                      background: selectedResume?.is_generated ? "#0a192f" : "var(--color-background)",
+                      borderColor: selectedResume?.is_generated ? "var(--color-primary)" : "var(--color-border)",
+                      color: selectedResume?.is_generated ? "#93c5fd" : "var(--color-foreground)",
+                      transition: "background 0.15s ease, border-color 0.15s ease",
+                    }}
+                  >
+                    {uploadedResumes.length > 0 && generatedResumes.length > 0 ? (
+                      <>
+                        <optgroup label="Uploaded Resumes" style={{ background: "var(--color-card)", color: "var(--color-muted-fg)" }}>
+                          {uploadedResumes.map((r) => (
+                            <option key={r.id} value={r.id} style={{ background: "var(--color-card)", color: "var(--color-foreground)" }}>
+                              {r.original_filename}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Generated Resumes" style={{ background: "#081320", color: "#60a5fa" }}>
+                          {generatedResumes.map((r) => (
+                            <option key={r.id} value={r.id} style={{ background: "#0a192f", color: "#93c5fd" }}>
+                              {r.original_filename}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </>
+                    ) : (
+                      resumes.map((r) => (
+                        <option
+                          key={r.id}
+                          value={r.id}
+                          style={{
+                            background: r.is_generated ? "#0a192f" : "var(--color-card)",
+                            color: r.is_generated ? "#93c5fd" : "var(--color-foreground)",
+                          }}
+                        >
+                          {r.original_filename}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                ) : null
+              }
+            >
+
               <div
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
@@ -521,16 +615,11 @@ export default function DashboardPage() {
                 <p style={{ fontSize: "0.8rem", color: "var(--color-muted-fg)", marginBottom: "0.75rem" }}>
                   {isDragging ? "Drop your PDF here" : "Drag & drop a PDF, or click to browse"}
                 </p>
-                <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+                <div style={{ display: "flex", gap: "1rem", alignItems: "center", justifyContent: "center" }}>
                   <button id="upload-resume-btn" onClick={() => fileRef.current?.click()} className="btn">
                     Upload PDF
                   </button>
                   <input ref={fileRef} type="file" accept=".pdf" onChange={handleUpload} style={{ display: "none" }} />
-                  {resumes.length > 0 && (
-                    <select id="resume-select" value={selectedResumeId} onChange={(e) => setSelectedResumeId(e.target.value)} className="select" style={{ maxWidth: "260px" }}>
-                      {resumes.map((r) => <option key={r.id} value={r.id}>{r.original_filename}</option>)}
-                    </select>
-                  )}
                 </div>
               </div>
             </Section>
@@ -564,19 +653,39 @@ export default function DashboardPage() {
 // ── Section wrapper ─────────────────────────────────────────────────────────
 function Section({
   title,
+  titleRight,
   titleExtra,
+  subtitle,
+  className,
+  style,
   children,
 }: {
   title: string;
+  titleRight?: React.ReactNode;
   titleExtra?: React.ReactNode;
+  subtitle?: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   return (
-    <div className="nm-card">
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-        <h3 style={{ margin: 0, fontSize: "0.95rem" }}>{title}</h3>
-        {titleExtra}
+    <div className={`nm-card ${className ?? ""}`.trim()} style={style}>
+      <div style={{ marginBottom: subtitle || titleExtra ? "0.4rem" : "1rem" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", minHeight: titleRight ? "1.8rem" : undefined }}>
+          <h3 style={{ margin: 0, fontSize: "0.95rem" }}>{title}</h3>
+          {titleRight}
+        </div>
+        {titleExtra && (
+          <div style={{ marginTop: "0.4rem" }}>
+            {titleExtra}
+          </div>
+        )}
       </div>
+      {subtitle && (
+        <p className="text-xs text-muted" style={{ margin: "0 0 0.875rem 0", lineHeight: "1.4" }}>
+          {subtitle}
+        </p>
+      )}
       {children}
     </div>
   );

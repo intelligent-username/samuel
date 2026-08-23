@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { getLoginUrl, fetchMe } from "@/lib/api";
+import Borromean3DViewer from "@/components/Borromean3DViewer";
 
 export default function Home() {
   const router = useRouter();
@@ -47,30 +48,17 @@ export default function Home() {
       }}
     >
       <div style={{ textAlign: "center", maxWidth: "480px", width: "100%" }}>
-        {/* Logo Mark */}
-        <div
-          style={{
-            width: "72px",
-            height: "72px",
-            borderRadius: "12px",
-            background: "var(--color-primary)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 1.5rem",
-            fontSize: "2rem",
-          }}
-        >
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-fg)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
+        {/* Live 3D Model Showcase */}
+        <div style={{ marginBottom: "1rem" }}>
+          <Borromean3DViewer height={380} />
         </div>
 
-        <h1 style={{ marginBottom: "0.5rem" }}>Samuel</h1>
+        <h1 style={{ fontSize: "5.1rem", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1, margin: "0 0 1rem" }}>
+          Samuel
+        </h1>
         <p className="text-muted" style={{ marginBottom: "2.5rem", lineHeight: 1.7 }}>
           AI-powered resume rewriting. Paste a job description,<br />
-          and we&apos;ll tailor your resume to match — using your own GitHub projects.
+          and we&apos;ll tailor your resume to match using your own GitHub projects.
         </p>
 
         {/* Login Card */}

@@ -25,6 +25,7 @@ git clone https://github.com/intelligent-username/Samuel && cd samuel
 # 2. Configure environment variables
 cp .env.example .env            # Open .env and set GITHUB_CLIENT_ID
                                 # and GITHUB_CLIENT_SECRET (from GitHub OAuth)
+                                # Make sure to fill in the rest of the .env file
 
 # 3. Start everything
 docker compose watch            # Hot-reload mode for development

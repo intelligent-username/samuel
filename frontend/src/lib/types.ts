@@ -24,6 +24,7 @@ export interface Repository {
 export interface Resume {
   id: string;
   original_filename: string;
+  is_generated?: boolean;
   created_at: string;
 }
 
