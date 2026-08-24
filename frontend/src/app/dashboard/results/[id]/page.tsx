@@ -69,7 +69,33 @@ export default function ResultsPage() {
   const [connectionError, setConnectionError] = useState(false);
   const [atsScore, setAtsScore]         = useState<number | null>(null);
   const [rewrittenResume, setRewrittenResume] = useState<string | null>(null);
+  const [showPreview, setShowPreview]   = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
+
+  const handleDownload = async () => {
+    setDownloadError(null);
+    try {
+      const res = await fetch(getDownloadUrl(params.id), { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 401) setDownloadError("Not authenticated — please sign in again.");
+        else if (res.status === 400) setDownloadError("Not available yet — generation not completed.");
+        else if (res.status === 404) setDownloadError("Generation not found.");
+        else {
+          const text = await res.text();
+          setDownloadError(text || `Download failed (${res.status})`);
+        }
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "resume.pdf"; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setDownloadError(String(e));
+    }
+  };
 
   const startStream = useCallback(() => {
     let es: EventSource;
@@ -303,9 +329,43 @@ export default function ResultsPage() {
           </div>
         )}
 
+        {done && rewrittenResume && (
+          <>
+            <div style={{ marginTop: "1.25rem", display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+              <button onClick={handleDownload} className="btn btn-primary">
+                Download PDF
+              </button>
+              <button className="btn btn-sm" onClick={() => setShowPreview((v) => !v)}>
+                {showPreview ? "Hide Preview" : "Preview PDF"}
+              </button>
+              <a href="/dashboard/history" className="btn btn-sm btn-ghost">View History</a>
+            </div>
+            {downloadError && (
+              <div className="nm-card" style={{ marginTop: "0.85rem", borderColor: "var(--color-destructive)", color: "var(--color-destructive)", fontSize: "0.82rem" }}>
+                {downloadError}
+              </div>
+            )}
+            {showPreview && (
+              <div className="nm-card" style={{ marginTop: "1rem", padding: "0.5rem", overflow: "hidden" }}>
+                <iframe
+                  src={getDownloadUrl(params.id)}
+                  title="Resume PDF preview"
+                  style={{ width: "100%", height: "600px", border: "none", borderRadius: "8px", background: "#fff" }}
+                  onError={() => setDownloadError("Preview failed to load. Try downloading instead.")}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {done && !rewrittenResume && (
+          <div className="nm-card" style={{ marginTop: "1.25rem", color: "var(--color-muted-fg)", fontSize: "0.85rem" }}>
+            Resume not available yet. If this persists, try regenerating.
+          </div>
+        )}
+
         {done && (
           <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <a href="/dashboard/history" className="btn btn-sm">View History</a>
             <button className="btn btn-sm btn-ghost" onClick={() => router.push("/dashboard")}>
               ← Back to Dashboard
             </button>
