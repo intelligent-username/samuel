@@ -26,10 +26,14 @@ const LANG_COLORS: Record<string, string> = {
   Ruby: "#701516", PHP: "#4f5d95", Dart: "#00b4ab", Scala: "#dc322f",
 };
 
-function LangBar({ languages }: { languages: Record<string, number> | null }) {
-  if (!languages) return null;
+function LangBar({ languages }: { languages: Record<string, number> | null | undefined }) {
+  if (!languages || typeof languages !== "object") {
+    return <span className="text-muted" style={{ fontSize: "0.7rem", fontStyle: "italic" }}>No language data</span>;
+  }
   const total = Object.values(languages).reduce((a, b) => a + b, 0);
-  if (total === 0) return null;
+  if (total === 0 || Object.keys(languages).length === 0) {
+    return <span className="text-muted" style={{ fontSize: "0.7rem", fontStyle: "italic" }}>No language data</span>;
+  }
   const entries = Object.entries(languages).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
   return (
@@ -151,23 +155,27 @@ function RepoDetail({ repo, onClose }: { repo: Repository; onClose: () => void }
               )}
             </div>
 
-            {repo.languages && total > 0 && (
-              <div>
-                <p style={{ fontSize: "0.72rem", fontWeight: 600, marginBottom: "0.5rem", color: "var(--color-muted-fg)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Languages</p>
+            <div>
+              <p style={{ fontSize: "0.72rem", fontWeight: 600, marginBottom: "0.5rem", color: "var(--color-muted-fg)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Languages</p>
+              {repo.languages && total > 0 ? (
+                <>
+                  <LangBar languages={repo.languages} />
+                  <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                    {Object.entries(repo.languages).sort((a, b) => b[1] - a[1]).map(([lang, bytes]) => (
+                      <div key={lang} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: LANG_COLORS[lang] ?? "#888", display: "inline-block" }} />
+                          {lang}
+                        </span>
+                        <span className="text-muted">{((bytes / total) * 100).toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
                 <LangBar languages={repo.languages} />
-                <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                  {Object.entries(repo.languages).sort((a, b) => b[1] - a[1]).map(([lang, bytes]) => (
-                    <div key={lang} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem" }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: LANG_COLORS[lang] ?? "#888", display: "inline-block" }} />
-                        {lang}
-                      </span>
-                      <span className="text-muted">{((bytes / total) * 100).toFixed(1)}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {repo.topics && repo.topics.length > 0 && (
               <div>
@@ -263,12 +271,9 @@ export default function DashboardPage() {
   // Avatar derived from GitHub username — publicly available, no auth needed
   const avatarUrl = username ? `https://github.com/${username}.png?size=40` : null;
 
-  // Filter: hide repos with no language data, and any manually removed; sort by last push
+  // Filter: hide only manually removed repos; sort by last push
   const visibleRepos = repos
-    .filter(
-      (r) => !removedIds.has(r.id) &&
-             r.languages && Object.values(r.languages).some((v) => v > 0)
-    )
+    .filter((r) => !removedIds.has(r.id))
     .sort((a, b) => {
       const aTime = a.last_push ? new Date(a.last_push).getTime() : 0;
       const bTime = b.last_push ? new Date(b.last_push).getTime() : 0;

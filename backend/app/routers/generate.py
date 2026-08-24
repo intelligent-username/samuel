@@ -90,11 +90,42 @@ async def stream_generation(
     if not generation:
         raise HTTPException(status_code=404, detail="Generation not found")
 
+    # --- Idempotent revisit guard (Issue #1) ---
+    if generation.status == "completed" and generation.rewritten_resume_text:
+        # Extract ATS score for done payload
+        ats_score = 0
+        if generation.ats_report and isinstance(generation.ats_report, dict):
+            ats_score = generation.ats_report.get("score", 0)
+
+        async def cached_event_generator():
+            # Replay step-done for all four steps so frontend marks them done instantly.
+            # Use synthetic summaries that match orchestrator's format; frontend only uses step key.
+            for step in ["jd_parser", "project_matcher", "resume_writer", "ats_checker"]:
+                yield {"event": "step-done", "data": {"step": step, "summary": "Cached"}}
+            # Replay the actual output + done from DB
+            yield {"event": "output", "data": generation.rewritten_resume_text}
+            yield {"event": "done", "data": {
+                "generation_id": str(generation.id),
+                "ats_score": ats_score,
+                "rewritten_resume": generation.rewritten_resume_text,  # fallback for Issue #8
+            }}
+
+        return EventSourceResponse(cached_event_generator())
+
+    # --- Live path: only for pending/running ---
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
     env_key = settings.openrouter_api_key or settings.openrouter_key
-    api_key = env_key if env_key else decrypt(user.openrouter_api_key)
+    if env_key:
+        api_key = env_key
+    else:
+        if not user.openrouter_api_key:
+            raise HTTPException(status_code=400, detail="OpenRouter API key not set")
+        api_key = decrypt(user.openrouter_api_key)
+
     llm = LLMClient(api_key)
     orchestrator = Orchestrator(generation_id, llm, db)
 
