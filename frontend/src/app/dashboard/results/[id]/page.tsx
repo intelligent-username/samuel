@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { createGenerationStream } from "@/lib/api";
+import { createGenerationStream, getDownloadUrl } from "@/lib/api";
 
 type StepName =
   | "jd_parser"
@@ -110,12 +110,29 @@ export default function ResultsPage() {
       );
     });
 
+    es.addEventListener("output", (e: MessageEvent) => {
+      let text: string;
+      try {
+        const parsed = JSON.parse(e.data);
+        if (typeof parsed === "string") text = parsed;
+        else if (parsed && typeof parsed.rewritten_resume === "string") text = parsed.rewritten_resume;
+        else if (parsed && typeof parsed.text === "string") text = parsed.text;
+        else text = e.data;
+      } catch {
+        text = e.data;
+      }
+      if (text) setRewrittenResume(text);
+    });
+
     es.addEventListener("done", (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
+      let data: any;
+      try { data = JSON.parse(e.data); } catch { data = {}; }
       setAtsScore(data.ats_score ?? null);
-      setRewrittenResume(data.rewritten_resume ?? null);
+      const fallback = data.rewritten_resume ?? data.rewritten_resume_text ?? data.text ?? null;
+      if (fallback) setRewrittenResume((prev) => prev ?? fallback);
+      // bulk-mark steps done for cached replay (if output arrived fast)
+      setSteps((prev) => prev.map((s) => ({ ...s, status: "done" })));
       setDone(true);
-      // Auto-collapse after a short delay
       setTimeout(() => setPanelVisible(false), 2200);
       es.close();
     });
@@ -275,7 +292,7 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {done && rewrittenResume && (
+        {rewrittenResume && (
           <div className="nm-card">
             <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--color-muted-fg)", marginBottom: "0.85rem" }}>
               Rewritten Resume

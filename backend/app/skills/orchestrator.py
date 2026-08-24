@@ -80,7 +80,7 @@ class Orchestrator:
         await self.db.commit()
 
         yield {"event": "output", "data": rewritten_text}
-        yield {"event": "done", "data": {"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0)}}
+        yield {"event": "done", "data": {"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0), "rewritten_resume": rewritten_text}}
 
     async def _get_user(self) -> User:
         result = await self.db.execute(
