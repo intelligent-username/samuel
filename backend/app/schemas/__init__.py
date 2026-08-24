@@ -42,6 +42,7 @@ class ResumeResponse(BaseModel):
     original_filename: str
     extracted_text: str
     created_at: datetime
+    sections: dict[str, str] | None = None  # preview of skills/projects split, no DB column
 
     model_config = {"from_attributes": True}
 

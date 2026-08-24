@@ -11,7 +11,7 @@ from app.models.user import User
 from app.schemas import ResumeResponse
 from app.services.auth import get_session_user_id
 from app.services.encryption import encrypt
-from app.services.pdf_extractor import extract_text_from_pdf
+from app.services.pdf_extractor import extract_text_from_pdf, extract_sections
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,9 @@ async def upload_resume(request: Request, file: UploadFile, db: AsyncSession = D
 
     try:
         text = extract_text_from_pdf(content)
+        sections = extract_sections(text)  # for preview
+        # remove internal flags before returning
+        preview = {k: v for k, v in sections.items() if k in ("skills", "projects")}
     except Exception as e:
         logger.warning("PDF extraction failed: %s", e)
         raise HTTPException(status_code=400, detail="Failed to extract PDF text")
@@ -52,7 +55,7 @@ async def upload_resume(request: Request, file: UploadFile, db: AsyncSession = D
     await db.commit()
     await db.refresh(resume)
 
-    return ResumeResponse.model_validate(resume)
+    return ResumeResponse.model_validate(resume).model_copy(update={"sections": preview})
 
 
 @router.post("/key")

@@ -104,6 +104,11 @@ export default function ResultsPage() {
         prev.map((s) => s.step === data.step ? { ...s, status: "error" } : s)
       );
     });
+    // Handle warning event from PDF fallback detection
+    es.addEventListener("warning", (e: MessageEvent) => {
+      const data = JSON.parse(e.data);
+      setBanner(data.message);
+    });
     // NEW: terminal error from router's except
     es.addEventListener("error", (e: MessageEvent) => {
       let msg = "Generation failed";
