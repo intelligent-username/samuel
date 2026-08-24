@@ -28,8 +28,17 @@ class Orchestrator:
         self.debug_dir = Path(settings.debug_dir) / str(generation_id)
 
     async def run(self) -> AsyncGenerator[dict, None]:
+        """Yield SSE events for the 4-skill chain.
+
+        Note: Idempotency is enforced by the router's cached-replay guard.
+        This method assumes status is pending/running; calling it for a
+        completed generation would re-run LLM calls and overwrite DB.
+        """
         user = await self._get_user()
         generation = await self._get_generation()
+        # Idempotent guard — caller should have used cached replay
+        if generation.status == "completed" and generation.rewritten_resume_text:
+            return
         sections = extract_sections(generation.resume.extracted_text)
         repos = await self._get_repos(user)
 
