@@ -71,6 +71,7 @@ export default function ResultsPage() {
   const [banner, setBanner]             = useState<string | null>(null);
   const [atsScore, setAtsScore]         = useState<number | null>(null);
   const [rewrittenResume, setRewrittenResume] = useState<string | null>(null);
+  const [headerSnippet, setHeaderSnippet] = useState<string | null>(null);
   const [showPreview, setShowPreview]   = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
@@ -156,6 +157,7 @@ export default function ResultsPage() {
     fetchGeneration(params.id)
       .then((gen) => {
         if (cancelled) return;
+        if (gen.job_description_text) setHeaderSnippet(gen.job_description_text.slice(0,140));
         if (gen.status === "failed") {
           // Let stream open? Instead show banner immediately but still allow stream to replay error
         }
@@ -180,6 +182,12 @@ export default function ResultsPage() {
       });
     return () => { cancelled = true; esRef.current?.close(); };
   }, [params.id]); // do NOT depend on startStream to avoid double-open; call directly
+
+  useEffect(() => {
+    fetchGeneration(params.id).then(g => {
+      if (g.job_description_text) setHeaderSnippet(g.job_description_text.slice(0,140));
+    }).catch(()=>{});
+  }, [params.id]);
 
   const allDone  = steps.every((s) => s.status === "done");
   const hasError = steps.some((s) => s.status === "error") || !!fatalError;
@@ -322,13 +330,9 @@ export default function ResultsPage() {
         )}
 
         {!fatalError && (
-          <p className="text-muted" style={{ marginBottom: "2.5rem", fontSize: "0.85rem" }}>
-            {done && !hasError
-              ? "Your rewritten resume is below."
-              : done && hasError
-              ? "One or more steps encountered an error."
-              : "Hang tight — the AI is working on your resume."}
-          </p>
+        <p className="text-muted" style={{ marginBottom: "2.5rem", fontSize: "0.85rem" }}>
+          {headerSnippet || "Your past resume generations..."}
+        </p>
         )}
 
         {done && atsScore !== null && (

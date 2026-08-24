@@ -174,8 +174,13 @@ export default function HistoryPage() {
                       <span className="chip" style={{ color: meta.color, background: "var(--color-card)" }}>
                         {meta.label}
                       </span>
-                      {gen.ats_report && (
-                        <span className="chip">ATS {gen.ats_report.score}/100</span>
+                      {gen.status === "completed" && gen.ats_report && typeof gen.ats_report.score === "number" && (
+                        <span className="chip" title={gen.ats_report.issues?.length ? `${gen.ats_report.issues.length} issues` : undefined}>
+                          ATS {gen.ats_report.score}/100
+                          {Array.isArray(gen.ats_report.issues) && gen.ats_report.issues.length > 0 && (
+                            <span style={{ marginLeft:"0.35rem", fontSize:"0.68rem", opacity:0.85 }}>· {gen.ats_report.issues.length} issues</span>
+                          )}
+                        </span>
                       )}
                     </div>
                   </div>
