@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { createGenerationStream } from "@/lib/api";
+import { createGenerationStream, getDownloadUrl } from "@/lib/api";
 
 type StepName =
   | "jd_parser"
@@ -69,6 +69,8 @@ export default function ResultsPage() {
   const [connectionError, setConnectionError] = useState(false);
   const [atsScore, setAtsScore]         = useState<number | null>(null);
   const [rewrittenResume, setRewrittenResume] = useState<string | null>(null);
+  const [showPreview, setShowPreview]   = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   const startStream = useCallback(() => {
@@ -296,13 +298,60 @@ export default function ResultsPage() {
         )}
 
         {rewrittenResume && (
-          <div className="nm-card">
-            <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--color-muted-fg)", marginBottom: "0.85rem" }}>
-              Rewritten Resume
-            </p>
-            <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.82rem", lineHeight: 1.7, color: "var(--color-foreground)", fontFamily: "inherit" }}>
-              {rewrittenResume}
-            </pre>
+          <>
+            <div className="nm-card">
+              <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--color-muted-fg)", marginBottom: "0.85rem" }}>
+                Rewritten Resume
+              </p>
+              <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.82rem", lineHeight: 1.7, color: "var(--color-foreground)", fontFamily: "inherit" }}>
+                {rewrittenResume}
+              </pre>
+            </div>
+
+            <div style={{ marginTop: "1.25rem", display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+              {/* Primary download — direct <a href> uses browser cookie auth */}
+              <a
+                href={getDownloadUrl(params.id)}
+                download="resume.pdf"
+                className="btn btn-primary"
+                onClick={() => setDownloadError(null)}
+                style={{ textDecoration: "none" }}
+              >
+                Download PDF
+              </a>
+
+              <button
+                className="btn btn-sm"
+                onClick={() => setShowPreview((v) => !v)}
+              >
+                {showPreview ? "Hide Preview" : "Preview PDF"}
+              </button>
+
+              <a href="/dashboard/history" className="btn btn-sm btn-ghost">View History</a>
+            </div>
+
+            {downloadError && (
+              <div className="nm-card" style={{ marginTop: "0.85rem", borderColor: "var(--color-destructive)", color: "var(--color-destructive)", fontSize: "0.82rem" }}>
+                {downloadError}
+              </div>
+            )}
+
+            {showPreview && (
+              <div className="nm-card" style={{ marginTop: "1rem", padding: "0.5rem", overflow: "hidden" }}>
+                <iframe
+                  src={getDownloadUrl(params.id)}
+                  title="Resume PDF preview"
+                  style={{ width: "100%", height: "560px", border: "none", borderRadius: "8px", background: "#fff" }}
+                  onError={() => setDownloadError("Preview failed to load. Try downloading instead.")}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {done && !rewrittenResume && (
+          <div className="nm-card" style={{ color: "var(--color-muted-fg)", fontSize: "0.85rem" }}>
+            Resume not available yet. If this persists, try regenerating.
           </div>
         )}
 
