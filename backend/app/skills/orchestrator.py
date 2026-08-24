@@ -38,44 +38,87 @@ class Orchestrator:
         generation = await self._get_generation()
         sections = extract_sections(generation.resume.extracted_text)
         repos = await self._get_repos(user)
+        
+        # Check for fallback sections and emit warning before resume_writer
+        is_fallback = bool(sections.get("_fallback")) or (not sections.get("skills") and not sections.get("projects"))
+        if is_fallback:
+            # Emit warning before resume_writer so frontend can show it; do not abort generation
+            yield {"event": "warning", "data": {"message": "Could not detect Skills/Projects sections — using full resume text"}}
 
         generation.status = "running"
         await self.db.commit()
 
+        # Helper to persist debug path even on failure
+        def _debug_path():
+            return str(self.debug_dir)
+
+        # Step 1: JD Parser
         yield {"event": "step-start", "data": {"step": "jd_parser", "message": "Parsing job description..."}}
-        jd_req = await JDParserSkill().run(generation.job_description_text, self.llm, debug_dir=self.debug_dir)
+        try:
+            jd_req = await JDParserSkill().run(generation.job_description_text, self.llm, debug_dir=self.debug_dir)
+        except Exception as e:
+            generation.skill_chain_debug_path = _debug_path()
+            try:
+                await self.db.commit()
+            except Exception:
+                await self.db.rollback()
+            yield {"event": "step-error", "data": {"step": "jd_parser", "message": str(e)}}
+            raise
         yield {"event": "step-done", "data": {"step": "jd_parser", "summary": f"Extracted {len(jd_req.keywords)} keywords, {len(jd_req.hard_requirements)} requirements"}}
 
+        # Step 2: Project Matcher
         yield {"event": "step-start", "data": {"step": "project_matcher", "message": "Matching projects to job..."}}
-        jd_dict = jd_req.model_dump()
-        repo_dicts = [
-            {
-                "name": r.name,
-                "description": r.description,
-                "stars": r.stars,
-                "languages": r.languages,
-                "readme_text": r.readme_text,
-                "topics": r.topics,
-            }
-            for r in repos
-        ]
-        ranked = await ProjectMatcherSkill().run(jd_dict, repo_dicts, self.llm, debug_dir=self.debug_dir)
+        try:
+            jd_dict = jd_req.model_dump()
+            repo_dicts = [
+                {"name": r.name, "description": r.description, "stars": r.stars, "languages": r.languages, "readme_text": r.readme_text, "topics": r.topics}
+                for r in repos
+            ]
+            ranked = await ProjectMatcherSkill().run(jd_dict, repo_dicts, self.llm, debug_dir=self.debug_dir)
+        except Exception as e:
+            generation.skill_chain_debug_path = _debug_path()
+            try:
+                await self.db.commit()
+            except Exception:
+                await self.db.rollback()
+            yield {"event": "step-error", "data": {"step": "project_matcher", "message": str(e)}}
+            raise
         yield {"event": "step-done", "data": {"step": "project_matcher", "summary": f"Ranked {len(ranked)} projects by relevance"}}
 
+        # Step 3: Resume Writer
         yield {"event": "step-start", "data": {"step": "resume_writer", "message": "Rewriting resume skills and projects..."}}
-        rewritten = await ResumeWriterSkill().run(
-            skills_section=sections["skills"],
-            projects_section=sections["projects"],
-            jd_requirements=jd_dict,
-            ranked_projects=ranked,
-            llm=self.llm,
-            debug_dir=self.debug_dir,
-        )
-        rewritten_text = f"## Skills\n\n{rewritten['skills']}\n\n## Projects\n\n{rewritten['projects']}"
+        try:
+            rewritten = await ResumeWriterSkill().run(
+                skills_section=str(sections.get("skills", "")),
+                projects_section=str(sections.get("projects", "")),
+                jd_requirements=jd_dict,
+                ranked_projects=ranked,
+                llm=self.llm,
+                debug_dir=self.debug_dir,
+            )
+            rewritten_text = f"## Skills\n\n{rewritten['skills']}\n\n## Projects\n\n{rewritten['projects']}"
+        except Exception as e:
+            generation.skill_chain_debug_path = _debug_path()
+            try:
+                await self.db.commit()
+            except Exception:
+                await self.db.rollback()
+            yield {"event": "step-error", "data": {"step": "resume_writer", "message": str(e)}}
+            raise
         yield {"event": "step-done", "data": {"step": "resume_writer", "summary": "Skills and projects sections rewritten"}}
 
+        # Step 4: ATS Checker
         yield {"event": "step-start", "data": {"step": "ats_checker", "message": "Checking ATS compatibility..."}}
-        ats_report = await ATSCheckerSkill().run(rewritten_text, jd_req.keywords, self.llm, debug_dir=self.debug_dir)
+        try:
+            ats_report = await ATSCheckerSkill().run(rewritten_text, jd_req.keywords, self.llm, debug_dir=self.debug_dir)
+        except Exception as e:
+            generation.skill_chain_debug_path = _debug_path()
+            try:
+                await self.db.commit()
+            except Exception:
+                await self.db.rollback()
+            yield {"event": "step-error", "data": {"step": "ats_checker", "message": str(e)}}
+            raise
         yield {"event": "step-done", "data": {"step": "ats_checker", "summary": f"ATS score: {ats_report.get('score', 'N/A')}/100"}}
 
         generation.rewritten_resume_text = rewritten_text

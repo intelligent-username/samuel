@@ -48,7 +48,7 @@ def extract_text_from_pdf(content: bytes) -> str:
     return "\n".join(text_parts).strip()
 
 
-def extract_sections(text: str) -> dict[str, str]:
+def extract_sections(text: str) -> dict[str, str | bool]:
     """Return {'skills': ..., 'projects': ...} pulled from resume text."""
     skills_text = _extract_section(text, SKILLS_HEADERS)
     projects_text = _extract_section(text, PROJECTS_HEADERS)
@@ -74,7 +74,7 @@ def _extract_section(text: str, target_names: set[str]) -> str:
 
     for line in lines:
         stripped = line.strip()
-        normalized = stripped.lower().rstrip(":")
+        normalized = _normalize_header(stripped)
 
         if normalized in target_names:
             capturing = True

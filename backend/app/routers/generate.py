@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.database import get_db
+from app.database import get_db, async_session_factory
 from app.models.generation import Generation
 from app.models.resume import Resume
 from app.models.user import User
@@ -144,13 +144,28 @@ async def stream_generation(
             async for event in orchestrator.run():
                 yield event
         except Exception as e:
-            # Mark failed only if not already completed (avoid overwriting completed)
-            result2 = await db.execute(select(Generation).where(Generation.id == generation_id))
-            gen = result2.scalar_one_or_none()
-            if gen and gen.status != "completed":
-                gen.status = "failed"
-                await db.commit()
-            yield {"event": "error", "data": {"message": str(e)}}
+            logger.exception("generation %s failed", generation_id)
+            # Session may be tainted -> rollback first, then use fresh session to persist failed
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            try:
+                async with async_session_factory() as retry_db:
+                    result2 = await retry_db.execute(select(Generation).where(Generation.id == generation_id))
+                    gen = result2.scalar_one_or_none()
+                    if gen and gen.status != "completed":
+                        gen.status = "failed"
+                        # Persist debug path even on failure if orchestrator set it
+                        if not gen.skill_chain_debug_path:
+                            from pathlib import Path
+                            from app.config import settings
+                            gen.skill_chain_debug_path = str(Path(settings.debug_dir) / str(generation_id))
+                        await retry_db.commit()
+            except Exception:
+                logger.exception("failed to persist failed status for %s", generation_id)
+            # Never leak raw JD or API key; str(e) is safe (exception message only)
+            yield {"event": "error", "data": {"message": str(e) or "Generation failed"}}
         finally:
             await llm.close()
 
