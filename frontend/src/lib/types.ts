@@ -9,7 +9,7 @@ export interface Repository {
   name: string;
   description: string | null;
   stars: number;
-  languages: Record<string, number>;
+  languages: Record<string, number> | null;
   topics: string[];
   last_push: string;
   readme_text: string | null;
