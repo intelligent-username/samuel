@@ -59,10 +59,20 @@ async def start_generation(
     if not user.openrouter_api_key and not env_key:
         raise HTTPException(status_code=400, detail="OpenRouter API key not set. Save it first via POST /resume/key")
 
+    # Defense in depth — even if schema is bypassed, enforce 8000
+    jd_text = body.job_description.strip()
+    if not jd_text:
+        raise HTTPException(status_code=422, detail="Please paste a job description")
+    if len(jd_text) > 8000:
+        raise HTTPException(status_code=422, detail="Job description too long (max 8000 characters)")
+    # Also handle raw body before strip (if validator not returning stripped)
+    if len(body.job_description) > 8000:
+        raise HTTPException(status_code=422, detail="Job description too long (max 8000 characters)")
+
     generation = Generation(
         user_id=user_id,
         resume_id=resume.id,
-        job_description_text=body.job_description,
+        job_description_text=jd_text,  # store stripped/validated value
         status="pending",
     )
     db.add(generation)
@@ -134,9 +144,10 @@ async def stream_generation(
             async for event in orchestrator.run():
                 yield event
         except Exception as e:
-            result = await db.execute(select(Generation).where(Generation.id == generation_id))
-            gen = result.scalar_one_or_none()
-            if gen:
+            # Mark failed only if not already completed (avoid overwriting completed)
+            result2 = await db.execute(select(Generation).where(Generation.id == generation_id))
+            gen = result2.scalar_one_or_none()
+            if gen and gen.status != "completed":
                 gen.status = "failed"
                 await db.commit()
             yield {"event": "error", "data": {"message": str(e)}}

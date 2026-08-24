@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class UserResponse(BaseModel):
@@ -49,7 +49,19 @@ class ResumeResponse(BaseModel):
 class GenerateRequest(BaseModel):
     """Request body to start a new resume generation."""
     resume_id: UUID
-    job_description: str = Field(..., min_length=10)
+    job_description: str = Field(..., min_length=10, max_length=8000, description="Job description 10-8000 chars")
+
+    @field_validator("job_description")
+    @classmethod
+    def strip_and_validate(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Please paste a job description")
+        if len(stripped) < 10:
+            raise ValueError("Job description too short (min 10 characters)")
+        if len(v) > 8000 or len(stripped) > 8000:
+            raise ValueError("Job description too long (max 8000 characters)")
+        return stripped
 
 
 class GenerationResponse(BaseModel):
