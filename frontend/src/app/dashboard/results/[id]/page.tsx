@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { createGenerationStream, getDownloadUrl } from "@/lib/api";
+import { createGenerationStream, getDownloadUrl, fetchGeneration } from "@/lib/api";
 
 type StepName =
   | "jd_parser"
@@ -67,6 +67,8 @@ export default function ResultsPage() {
   const [done, setDone]                 = useState(false);
   const [panelVisible, setPanelVisible] = useState(true);
   const [connectionError, setConnectionError] = useState(false);
+  const [fatalError, setFatalError]     = useState<null | { title: string; detail: string }>(null);
+  const [banner, setBanner]             = useState<string | null>(null);
   const [atsScore, setAtsScore]         = useState<number | null>(null);
   const [rewrittenResume, setRewrittenResume] = useState<string | null>(null);
   const [showPreview, setShowPreview]   = useState(false);
@@ -83,35 +85,45 @@ export default function ResultsPage() {
     }
     esRef.current = es;
 
-    es.onerror = () => {
-      if (!done) {
-        setConnectionError(true);
-        setDone(true);
-        es.close();
-      }
-    };
-
     es.addEventListener("step-start", (e: MessageEvent) => {
       const data = JSON.parse(e.data);
       setSteps((prev) =>
         prev.map((s) => s.step === data.step ? { ...s, status: "running" } : s)
       );
     });
-
     es.addEventListener("step-done", (e: MessageEvent) => {
       const data = JSON.parse(e.data);
       setSteps((prev) =>
         prev.map((s) => s.step === data.step ? { ...s, status: "done" } : s)
       );
     });
-
     es.addEventListener("step-error", (e: MessageEvent) => {
       const data = JSON.parse(e.data);
       setSteps((prev) =>
         prev.map((s) => s.step === data.step ? { ...s, status: "error" } : s)
       );
     });
-
+    // NEW: terminal error from router's except
+    es.addEventListener("error", (e: MessageEvent) => {
+      let msg = "Generation failed";
+      try { const d = JSON.parse((e as any).data); if (d?.message) msg = d.message; } catch {}
+      setSteps((prev) => prev.map((s) => s.status === "running" ? { ...s, status: "error" } : s));
+      setBanner(msg);
+      setDone(true);
+      es.close();
+    });
+    es.addEventListener("done", (e: MessageEvent) => {
+      let data: any;
+      try { data = JSON.parse(e.data); } catch { data = {}; }
+      setAtsScore(data.ats_score ?? null);
+      // Fallback: if output was missed (race on fast replay), populate from done
+      const fallback = data.rewritten_resume ?? data.rewritten_resume_text ?? data.text ?? null;
+      if (fallback) setRewrittenResume((prev) => prev ?? fallback);
+      setDone(true);
+      // Auto-collapse after a short delay
+      setTimeout(() => setPanelVisible(false), 2200);
+      es.close();
+    });
     // Handle the dedicated `output` event that carries the full rewritten text.
     // Backend sends `data` as plain string (rewritten_text), not JSON object.
     // Support both cases: JSON-wrapped string and plain text.
@@ -129,27 +141,48 @@ export default function ResultsPage() {
       if (text) setRewrittenResume(text);
     });
 
-    es.addEventListener("done", (e: MessageEvent) => {
-      let data: any;
-      try { data = JSON.parse(e.data); } catch { data = {}; }
-      setAtsScore(data.ats_score ?? null);
-      // Fallback: if output was missed (race on fast replay), populate from done
-      const fallback = data.rewritten_resume ?? data.rewritten_resume_text ?? data.text ?? null;
-      if (fallback) setRewrittenResume((prev) => prev ?? fallback);
-      setDone(true);
-      // Auto-collapse after a short delay
-      setTimeout(() => setPanelVisible(false), 2200);
-      es.close();
-    });
-  }, [params.id]);
+    es.onerror = () => {
+      if (!done && !fatalError) {
+        setConnectionError(true);
+        setDone(true);
+        es.close();
+      }
+    };
+  }, [params.id, done, fatalError]);
 
   useEffect(() => {
-    startStream();
-    return () => esRef.current?.close();
-  }, [startStream]);
+    let cancelled = false;
+    // Optimistic fetch before opening SSE
+    fetchGeneration(params.id)
+      .then((gen) => {
+        if (cancelled) return;
+        if (gen.status === "failed") {
+          // Let stream open? Instead show banner immediately but still allow stream to replay error
+        }
+        // Only after successful fetch, open stream (unless we already know completed cached path exists)
+        startStream();
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        const msg = err.message || "";
+        // fetchApi throws Error(err || HTTP status); detect 404 vs 401
+        if (msg.includes("404") || msg.includes("Generation not found")) {
+          setFatalError({ title: "Generation not found", detail: "Check the URL or go back to history." });
+        } else if (msg.includes("401") || msg.toLowerCase().includes("not authenticated") || msg.includes("Not authorized") || msg.includes("403")) {
+          setFatalError({ title: "Not authorized", detail: "You do not have access to this generation." });
+        } else {
+          // Network or other -> still try SSE; SSE onerror will show connection lost
+          startStream();
+          return;
+        }
+        setDone(true);
+        setSteps((prev) => prev.map((s) => ({ ...s, status: "error" } as Step)));
+      });
+    return () => { cancelled = true; esRef.current?.close(); };
+  }, [params.id]); // do NOT depend on startStream to avoid double-open; call directly
 
   const allDone  = steps.every((s) => s.status === "done");
-  const hasError = steps.some((s) => s.status === "error");
+  const hasError = steps.some((s) => s.status === "error") || !!fatalError;
 
   // ── Timeline overlay panel ──────────────────────────────────────────────
   const panel = panelVisible && (
@@ -231,13 +264,13 @@ export default function ResultsPage() {
       </div>
 
       {/* Connection error */}
-      {connectionError && (
+      {!fatalError && connectionError && (
         <div style={{ marginTop: "auto", paddingTop: "0.75rem", borderTop: "1px solid var(--color-border)" }}>
           <p style={{ fontSize: "0.72rem", color: "var(--color-destructive)", marginBottom: "0.5rem" }}>
             Connection lost.
           </p>
           <button
-            onClick={() => { setConnectionError(false); setDone(false); setSteps(INITIAL_STEPS); startStream(); }}
+            onClick={() => { setConnectionError(false); setDone(false); setFatalError(null); setBanner(null); setSteps(INITIAL_STEPS); startStream(); }}
             className="btn btn-sm"
             style={{ width: "100%", justifyContent: "center" }}
           >
@@ -269,21 +302,33 @@ export default function ResultsPage() {
         transition: "padding-right 0.3s ease",
       }}>
         <h1 style={{ fontSize: "1.75rem", fontWeight: 800, marginBottom: "0.4rem" }}>
-          {done && !hasError ? "Resume ready" : done && hasError ? "Generation failed" : "Generating resume…"}
+          {fatalError ? "Error" : done && !hasError ? "Resume ready" : done && hasError ? "Generation failed" : "Generating resume…"}
         </h1>
-        <p className="text-muted" style={{ marginBottom: "2.5rem", fontSize: "0.85rem" }}>
-          {done && !hasError
-            ? "Your rewritten resume is below."
-            : done && hasError
-            ? "One or more steps encountered an error."
-            : "Hang tight — the AI is working on your resume."}
-        </p>
-
-        {!done && (
-          <div className="nm-card" style={{ display: "flex", alignItems: "center", gap: "1rem", color: "var(--color-muted-fg)", fontSize: "0.875rem" }}>
-            <span className="spinner spinner-sm" />
-            Working…
+        {fatalError && (
+          <div className="nm-card" style={{ borderColor:"var(--color-destructive)", marginBottom:"1.5rem" }}>
+            <h3 style={{ color:"var(--color-destructive)", margin:"0 0 0.35rem" }}>{fatalError.title}</h3>
+            <p className="text-muted" style={{ fontSize:"0.85rem", margin:"0 0 1rem" }}>{fatalError.detail}</p>
+            <div style={{ display:"flex", gap:"0.75rem" }}>
+              <a href="/dashboard/history" className="btn btn-sm">View History</a>
+              <button className="btn btn-sm btn-ghost" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+            </div>
           </div>
+        )}
+        {!fatalError && banner && (
+          <div className="nm-card" style={{ borderColor:"var(--color-destructive)", color:"var(--color-destructive)", fontSize:"0.85rem", marginBottom:"1rem" }}>{banner}</div>
+        )}
+        {!fatalError && !done && !connectionError && (
+          <div className="nm-card" style={{ display: "flex", alignItems: "center", gap: "1rem" }}><span className="spinner spinner-sm" /> Working…</div>
+        )}
+
+        {!fatalError && (
+          <p className="text-muted" style={{ marginBottom: "2.5rem", fontSize: "0.85rem" }}>
+            {done && !hasError
+              ? "Your rewritten resume is below."
+              : done && hasError
+              ? "One or more steps encountered an error."
+              : "Hang tight — the AI is working on your resume."}
+          </p>
         )}
 
         {done && atsScore !== null && (
