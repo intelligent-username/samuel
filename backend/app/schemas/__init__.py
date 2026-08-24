@@ -12,7 +12,7 @@ class UserResponse(BaseModel):
     github_username: str
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "forbid"}
 
 
 class RepositoryResponse(BaseModel):
@@ -33,7 +33,7 @@ class RepositoryResponse(BaseModel):
     repo_created_at: datetime | None = None
     url: str | None = None
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "forbid"}
 
 
 class ResumeResponse(BaseModel):
@@ -44,7 +44,7 @@ class ResumeResponse(BaseModel):
     created_at: datetime
     sections: dict[str, str] | None = None  # preview of skills/projects split, no DB column
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "forbid"}
 
 
 class GenerateRequest(BaseModel):
@@ -69,12 +69,13 @@ class GenerationResponse(BaseModel):
     """Generation record returned to the frontend."""
     id: UUID
     status: str
+    job_description_text: str
     rewritten_resume_text: str | None = None
     ats_report: dict[str, Any] | None = None
     created_at: datetime
     completed_at: datetime | None = None
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "forbid"}
 
 
 class JDRequirements(BaseModel):
@@ -84,3 +85,5 @@ class JDRequirements(BaseModel):
     seniority_level: str
     red_flags: list[str]
     keywords: list[str]
+
+    model_config = {"extra": "forbid"}
