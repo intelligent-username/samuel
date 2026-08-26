@@ -35,8 +35,12 @@ class Orchestrator:
         This method assumes status is pending/running; calling it for a
         completed generation would re-run LLM calls and overwrite DB.
         """
-        user = await self._get_user()
         generation = await self._get_generation()
+        # Get user via explicit FK — avoids join ambiguity that caused "User not found"
+        result = await self.db.execute(select(User).where(User.id == generation.user_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise ValueError("User not found")
         sections = extract_sections(generation.resume.extracted_text)
         repos = await self._get_repos(user)
         
@@ -133,9 +137,9 @@ class Orchestrator:
         yield {"event": "done", "data": {"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0), "rewritten_resume": rewritten_text, "pdf_url": f"/generate/{self.generation_id}/download"}}
 
     async def _get_user(self) -> User:
-        result = await self.db.execute(
-            select(User).join(Generation).where(Generation.id == self.generation_id)
-        )
+        # Fetch generation first to get user_id explicitly — avoids ambiguous join
+        gen = await self._get_generation()
+        result = await self.db.execute(select(User).where(User.id == gen.user_id))
         user = result.scalar_one_or_none()
         if not user:
             raise ValueError("User not found")

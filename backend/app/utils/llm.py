@@ -18,8 +18,17 @@ def extract_json(text: str) -> dict | list | None:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
+    # Try object extraction
     start = text.find("{")
     end = text.rfind("}")
+    if start != -1 and end > start:
+        try:
+            return json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            pass
+    # Try array extraction (for project_matcher)
+    start = text.find("[")
+    end = text.rfind("]")
     if start != -1 and end > start:
         try:
             return json.loads(text[start : end + 1])
@@ -31,19 +40,20 @@ OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 GROQ_BASE = "https://api.groq.com/openai/v1"
 
 GROQ_MODELS = [
-    "qwen/qwen3.6-27b",
-    "openai/gpt-oss-120b",
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
     "openai/gpt-oss-20b",
-    "groq/compound",
+    "openai/gpt-oss-120b",
     "groq/compound-mini",
 ]
 
+# OpenRouter fallback — use base slugs (free suffix now 404 for these models). Groq is prioritized; this is backup.
 FALLBACK_MODELS = [
-    "openai/gpt-oss-120b:free",
-    "nousresearch/hermes-3-llama-3.1-405b:free",
-    "nvidia/nemotron-3-ultra:free",
-    "google/gemma-4-26b-a4b-it:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
+    "meta-llama/llama-3.3-70b-instruct",
+    "google/gemma-3-27b-it",
+    "mistralai/mistral-small-3.1-24b-instruct",
+    "qwen/qwen-2.5-72b-instruct",
+    "deepseek/deepseek-r1",
     "openrouter/auto",
 ]
 
@@ -89,8 +99,10 @@ class LLMClient:
                 filtered = {k: v for k, v in data.items() if k in fields}
                 try:
                     return response_model(**filtered)
-                except ValueError:
-                    logger.warning("LLM output failed %s validation", response_model.__name__)
+                except Exception:
+                    logger.warning("LLM output failed %s validation: %s", response_model.__name__, content[:500] if isinstance(content, str) else content)
+            else:
+                logger.warning("LLM output for %s was not JSON dict", response_model.__name__)
             return content
         return content
 
@@ -102,16 +114,31 @@ class LLMClient:
         }
         if isinstance(model, list):
             payload["models"] = model
-            payload["route"] = "fallback"
         else:
             payload["model"] = model
 
         for attempt in range(3):
+            resp = None
             try:
                 resp = await client.post("/chat/completions", json=payload)
                 if resp.status_code in _RETRYABLE:
+                    body = ""
+                    try:
+                        body = resp.text[:500]
+                    except Exception:
+                        pass
+                    logger.warning("LLM retryable %s (model=%s) body=%s", resp.status_code, model, body)
                     await asyncio.sleep(2**attempt)
                     continue
+                if resp.status_code >= 400:
+                    body = ""
+                    try:
+                        body = resp.text[:800]
+                    except Exception:
+                        pass
+                    logger.warning("LLM request failed %s (model=%s) body=%s", resp.status_code, model, body)
+                    # 400 is not retryable — try next model immediately
+                    return None
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]["content"]
             except httpx.TimeoutException:
@@ -120,7 +147,13 @@ class LLMClient:
                     return None
                 await asyncio.sleep(2**attempt)
             except httpx.HTTPError as e:
-                logger.warning("LLM request failed (model=%s): %s", model, e)
+                body = ""
+                try:
+                    if resp is not None:
+                        body = resp.text[:800]
+                except Exception:
+                    pass
+                logger.warning("LLM request failed (model=%s): %s body=%s", model, e, body)
                 return None
         return None
 
@@ -136,12 +169,13 @@ class LLMClient:
         return None
 
     async def _complete_openrouter(self, prompt: str) -> str:
-        for attempt in range(3):
-            content = await self._chat(self._client, FALLBACK_MODELS, prompt)
+        # Try each OpenRouter model sequentially (single `model` field) — more reliable than `models` array which 400s
+        for model in FALLBACK_MODELS:
+            content = await self._chat(self._client, model, prompt)
             if content is not None:
                 return content
-            await asyncio.sleep(2**attempt)
-        raise RuntimeError("LLM request failed after 3 attempts")
+        # If all single models failed, raise (Groq already tried via complete())
+        raise RuntimeError("LLM request failed after 3 attempts (all Groq + OpenRouter free models)")
 
     async def embed(self, text: str) -> list[float]:
         resp = await self._client.post(
