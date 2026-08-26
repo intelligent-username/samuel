@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createGenerationStream, getDownloadUrl, fetchGeneration } from "@/lib/api";
+import Borromean3DViewer from "@/components/Borromean3DViewer";
 
 type StepName =
   | "jd_parser"
@@ -72,7 +73,7 @@ export default function ResultsPage() {
   const [atsScore, setAtsScore]         = useState<number | null>(null);
   const [rewrittenResume, setRewrittenResume] = useState<string | null>(null);
   const [headerSnippet, setHeaderSnippet] = useState<string | null>(null);
-  const [showPreview, setShowPreview]   = useState(false);
+  const [showPreview] = useState(true);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
@@ -203,6 +204,16 @@ export default function ResultsPage() {
       });
     return () => { cancelled = true; esRef.current?.close(); };
   }, [params.id]); // do NOT depend on startStream to avoid double-open; call directly
+
+  // Suppress harmless Next.js auto-scroll warning for the fixed timeline panel
+  useEffect(() => {
+    const orig = console.warn;
+    console.warn = (...args: any[]) => {
+      if (typeof args[0] === "string" && args[0].includes("Skipping auto-scroll")) return;
+      orig.apply(console, args);
+    };
+    return () => { console.warn = orig; };
+  }, []);
 
   useEffect(() => {
     fetchGeneration(params.id).then(g => {
@@ -347,7 +358,13 @@ export default function ResultsPage() {
           <div className="nm-card" style={{ borderColor:"var(--color-destructive)", color:"var(--color-destructive)", fontSize:"0.85rem", marginBottom:"1rem" }}>{banner}</div>
         )}
         {!fatalError && !done && !connectionError && (
-          <div className="nm-card" style={{ display: "flex", alignItems: "center", gap: "1rem" }}><span className="spinner spinner-sm" /> Working…</div>
+          <div className="nm-card" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1.2rem", padding: "2.5rem 1.5rem", textAlign: "center" }}>
+            <Borromean3DViewer height={140} width={140} interactive={false} speed="normal" />
+            <div>
+              <p style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "0.35rem" }}>Generating your tailored resume…</p>
+              <p className="text-muted" style={{ fontSize: "0.8rem" }}>Matching projects → rewriting → ATS check</p>
+            </div>
+          </div>
         )}
 
         {!fatalError && (
@@ -369,17 +386,16 @@ export default function ResultsPage() {
 
         {rewrittenResume && (
           <>
-            <div className="nm-card">
-              <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--color-muted-fg)", marginBottom: "0.85rem" }}>
-                Rewritten Resume
-              </p>
-              <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.82rem", lineHeight: 1.7, color: "var(--color-foreground)", fontFamily: "inherit" }}>
-                {rewrittenResume}
-              </pre>
+            <div className="nm-card" style={{ padding: "0.5rem", overflow: "hidden" }}>
+              <iframe
+                src={getDownloadUrl(params.id)}
+                title="Resume PDF preview"
+                style={{ width: "100%", height: "720px", border: "none", borderRadius: "8px", background: "#fff" }}
+                onError={() => setDownloadError("Preview failed to load. Try downloading instead.")}
+              />
             </div>
 
             <div style={{ marginTop: "1.25rem", display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-              {/* Primary download — direct <a href> uses browser cookie auth */}
               <a
                 href={getDownloadUrl(params.id)}
                 download="resume.pdf"
@@ -389,15 +405,10 @@ export default function ResultsPage() {
               >
                 Download PDF
               </a>
-
-              <button
-                className="btn btn-sm"
-                onClick={() => setShowPreview((v) => !v)}
-              >
-                {showPreview ? "Hide Preview" : "Preview PDF"}
+              <a href="/dashboard/history" className="btn btn-sm">View History</a>
+              <button className="btn btn-sm btn-ghost" onClick={() => router.push("/dashboard")}>
+                ← Back to Dashboard
               </button>
-
-              <a href="/dashboard/history" className="btn btn-sm btn-ghost">View History</a>
             </div>
 
             {downloadError && (
@@ -405,33 +416,19 @@ export default function ResultsPage() {
                 {downloadError}
               </div>
             )}
-
-            {showPreview && (
-              <div className="nm-card" style={{ marginTop: "1rem", padding: "0.5rem", overflow: "hidden" }}>
-                <iframe
-                  src={getDownloadUrl(params.id)}
-                  title="Resume PDF preview"
-                  style={{ width: "100%", height: "560px", border: "none", borderRadius: "8px", background: "#fff" }}
-                  onError={() => setDownloadError("Preview failed to load. Try downloading instead.")}
-                />
-              </div>
-            )}
           </>
         )}
 
-        {done && !rewrittenResume && (
-          <div className="nm-card" style={{ color: "var(--color-muted-fg)", fontSize: "0.85rem" }}>
-            Resume not available yet. If this persists, try regenerating.
-          </div>
-        )}
-
-        {done && (
-          <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <a href="/dashboard/history" className="btn btn-sm">View History</a>
-            <button className="btn btn-sm btn-ghost" onClick={() => router.push("/dashboard")}>
-              ← Back to Dashboard
-            </button>
-          </div>
+        {done && !rewrittenResume && !connectionError && !fatalError && (
+          <>
+            <div className="nm-card" style={{ color: "var(--color-muted-fg)", fontSize: "0.85rem" }}>
+              No resume content yet — still generating or generation failed. If this persists, try regenerating.
+            </div>
+            <div style={{ marginTop: "1.25rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <a href="/dashboard/history" className="btn btn-sm">View History</a>
+              <button className="btn btn-sm btn-ghost" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+            </div>
+          </>
         )}
       </div>
     </>

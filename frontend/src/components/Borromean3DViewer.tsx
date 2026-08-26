@@ -36,19 +36,8 @@ export default function Borromean3DViewer({
     let cleanupFn: (() => void) | undefined;
 
     const init = async () => {
-      let THREE = (window as any).THREE;
-      if (!THREE) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
-          script.async = true;
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error("Three.js failed to load"));
-          document.head.appendChild(script);
-        });
-        THREE = (window as any).THREE;
-      }
-
+      // Use npm-installed three (single instance) — avoids duplicate warning from CDN + npm
+      const THREE = await import("three");
       if (!THREE || !active) return;
 
       const container = containerRef.current;
