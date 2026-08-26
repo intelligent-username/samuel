@@ -86,31 +86,47 @@ export default function ResultsPage() {
     }
     esRef.current = es;
 
+    const parseStep = (e: MessageEvent): StepName | null => {
+      try {
+        const d = JSON.parse(e.data);
+        return typeof d?.step === "string" ? (d.step as StepName) : null;
+      } catch {
+        return null;
+      }
+    };
+
     es.addEventListener("step-start", (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
+      const step = parseStep(e);
+      if (!step) return;
       setSteps((prev) =>
-        prev.map((s) => s.step === data.step ? { ...s, status: "running" } : s)
+        prev.map((s) => s.step === step ? { ...s, status: "running" } : s)
       );
     });
     es.addEventListener("step-done", (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
+      const step = parseStep(e);
+      if (!step) return;
       setSteps((prev) =>
-        prev.map((s) => s.step === data.step ? { ...s, status: "done" } : s)
+        prev.map((s) => s.step === step ? { ...s, status: "done" } : s)
       );
     });
     es.addEventListener("step-error", (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
+      const step = parseStep(e);
+      if (!step) return;
       setSteps((prev) =>
-        prev.map((s) => s.step === data.step ? { ...s, status: "error" } : s)
+        prev.map((s) => s.step === step ? { ...s, status: "error" } : s)
       );
     });
     // Handle warning event from PDF fallback detection
     es.addEventListener("warning", (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setBanner(data.message);
+      try {
+        const data = JSON.parse(e.data);
+        if (data?.message) setBanner(data.message);
+      } catch {}
     });
-    // NEW: terminal error from router's except
+    // Terminal error emitted by the backend router's except block.
+    // Native EventSource connection errors have no `data` — those are handled by es.onerror.
     es.addEventListener("error", (e: MessageEvent) => {
+      if (!(e as any).data) return;
       let msg = "Generation failed";
       try { const d = JSON.parse((e as any).data); if (d?.message) msg = d.message; } catch {}
       setSteps((prev) => prev.map((s) => s.status === "running" ? { ...s, status: "error" } : s));

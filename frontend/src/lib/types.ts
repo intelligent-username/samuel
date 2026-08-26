@@ -51,3 +51,10 @@ export interface StepEvent {
   summary?: string;
   status: "pending" | "active" | "done" | "error";
 }
+
+export interface DoneEvent {
+  generation_id: string;
+  ats_score: number;
+  rewritten_resume: string;
+  pdf_url: string;
+}

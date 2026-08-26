@@ -27,6 +27,11 @@ class JDParserSkill:
         prompt = SKILL_FILE.read_text().replace("{{JD_TEXT}}", jd_text)
         result = await llm.complete(prompt, response_model=JDRequirements)
 
+        if isinstance(result, str):
+            raise RuntimeError("JD parser could not extract structured requirements from the job description")
+        if not isinstance(result, JDRequirements):
+            result = JDRequirements(**result)
+
         if debug_dir:
             debug_path = Path(debug_dir) / "step1_jd_parser.json"
             debug_path.parent.mkdir(parents=True, exist_ok=True)

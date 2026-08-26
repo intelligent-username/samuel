@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-from app.utils.llm import LLMClient
+from app.utils.llm import LLMClient, extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +44,10 @@ class ResumeWriterSkill:
         result = await llm.complete(prompt)
 
         if isinstance(result, str):
-            try:
-                result = json.loads(result)
-            except (json.JSONDecodeError, TypeError):
+            parsed = extract_json(result)
+            if isinstance(parsed, dict):
+                result = {"skills": str(parsed.get("skills", "")), "projects": str(parsed.get("projects", ""))}
+            else:
                 result = {"skills": result, "projects": ""}
         elif isinstance(result, dict):
             result = {"skills": result.get("skills", ""), "projects": result.get("projects", "")}

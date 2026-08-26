@@ -8,6 +8,7 @@ from fastapi.responses import Response
 from sse_starlette.sse import EventSourceResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.database import get_db, async_session_factory
@@ -46,7 +47,9 @@ async def start_generation(
     if not resume:
         # Check if resume_id is a previous Generation id
         gen_res = await db.execute(
-            select(Generation).where(Generation.id == body.resume_id, Generation.user_id == user_id)
+            select(Generation)
+            .where(Generation.id == body.resume_id, Generation.user_id == user_id)
+            .options(selectinload(Generation.resume))
         )
         gen = gen_res.scalar_one_or_none()
         if gen:
@@ -94,7 +97,9 @@ async def stream_generation(
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     result = await db.execute(
-        select(Generation).where(Generation.id == generation_id, Generation.user_id == user_id)
+        select(Generation)
+        .where(Generation.id == generation_id, Generation.user_id == user_id)
+        .options(selectinload(Generation.resume))
     )
     generation = result.scalar_one_or_none()
     if not generation:
@@ -118,6 +123,7 @@ async def stream_generation(
                 "generation_id": str(generation.id),
                 "ats_score": ats_score,
                 "rewritten_resume": generation.rewritten_resume_text,  # fallback for Issue #8
+                "pdf_url": f"/generate/{generation.id}/download",
             }}
 
         return EventSourceResponse(cached_event_generator())
@@ -136,7 +142,7 @@ async def stream_generation(
             raise HTTPException(status_code=400, detail="OpenRouter API key not set")
         api_key = decrypt(user.openrouter_api_key)
 
-    llm = LLMClient(api_key)
+    llm = LLMClient(api_key, groq_api_key=settings.groq_api_key or None)
     orchestrator = Orchestrator(generation_id, llm, db)
 
     async def event_generator():

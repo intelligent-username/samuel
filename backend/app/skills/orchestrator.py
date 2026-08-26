@@ -5,6 +5,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.models.generation import Generation
@@ -129,7 +130,7 @@ class Orchestrator:
         await self.db.commit()
 
         yield {"event": "output", "data": rewritten_text}
-        yield {"event": "done", "data": {"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0), "rewritten_resume": rewritten_text}}
+        yield {"event": "done", "data": {"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0), "rewritten_resume": rewritten_text, "pdf_url": f"/generate/{self.generation_id}/download"}}
 
     async def _get_user(self) -> User:
         result = await self.db.execute(
@@ -142,7 +143,9 @@ class Orchestrator:
 
     async def _get_generation(self) -> Generation:
         result = await self.db.execute(
-            select(Generation).where(Generation.id == self.generation_id)
+            select(Generation)
+            .where(Generation.id == self.generation_id)
+            .options(selectinload(Generation.resume))
         )
         gen = result.scalar_one_or_none()
         if not gen:
