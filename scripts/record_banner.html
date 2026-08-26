@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Borromean Rings Recorder (1920x1080 60FPS Seamless Loop)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #container {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      background: #000;
+    }
+    #panel {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(18, 18, 20, 0.92);
+      border: 1px solid rgba(212, 176, 106, 0.4);
+      padding: 16px 24px;
+      border-radius: 12px;
+      font-size: 15px;
+      z-index: 100;
+      color: #e5e5e5;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+      max-width: 460px;
+      backdrop-filter: blur(10px);
+    }
+    #status {
+      font-weight: 600;
+      color: #d4b06a;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+    #progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: #2a2a30;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    #progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #d4b06a, #ffd782);
+      transition: width 0.1s ease;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    button {
+      background: #d4b06a;
+      color: #111;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    button:hover {
+      background: #ffd782;
+    }
+    button:disabled {
+      background: #555;
+      color: #888;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div id="panel">
+    <div id="status">Initializing 3D Borromean Scene...</div>
+    <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+    <div id="substatus" style="font-size: 12px; color: #888; margin-bottom: 8px;">Preparing 240-frame mathematical loop...</div>
+    <div class="btn-group">
+      <button id="btn-start" onclick="startExport()">Render & Save with FFmpeg</button>
+      <button id="btn-webm" onclick="recordDirectWebM()">Direct Browser WebM</button>
+    </div>
+  </div>
+
+  <div id="container"></div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const substatusEl = document.getElementById("substatus");
+    const progressBar = document.getElementById("progress-bar");
+    const btnStart = document.getElementById("btn-start");
+    const btnWebm = document.getElementById("btn-webm");
+    const container = document.getElementById("container");
+
+    const W = 1920;
+    const H = 1080;
+    const FPS = 60;
+    const DURATION_SECONDS = 4;
+    const TOTAL_FRAMES = FPS * DURATION_SECONDS; // 240
+
+    // 1. Scene, Camera, WebGL Renderer
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+
+    const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 100);
+    camera.position.set(0, 0, 7.6);
+
+    const renderer = new THREE.WebGLRenderer({
+      alpha: false,
+      antialias: true,
+      powerPreference: "high-performance",
+      precision: "highp",
+      preserveDrawingBuffer: true
+    });
+    renderer.setPixelRatio(1.0);
+    renderer.setSize(W, H);
+    renderer.outputEncoding = THREE.sRGBEncoding || 3001;
+    container.appendChild(renderer.domElement);
+
+    // 2. Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+
+    const keyLight = new THREE.DirectionalLight(0xfff8ee, 3.4);
+    keyLight.position.set(6, 8, 7);
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0x0088cc, 2.4);
+    fillLight.position.set(-6, -4, -5);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.PointLight(0xfc6a03, 3.4, 30);
+    rimLight.position.set(0, 5, -6);
+    scene.add(rimLight);
+
+    const bounceLight = new THREE.PointLight(0xa07838, 2.2, 20);
+    bounceLight.position.set(0, -6, 3);
+    scene.add(bounceLight);
+
+    // 3. Perforation Texture
+    const texCanvas = document.createElement("canvas");
+    texCanvas.width = 2048;
+    texCanvas.height = 2048;
+    const ctx = texCanvas.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, 2048, 2048);
+
+    const holeR = 58.0;
+    const stepX = 184.0;
+    const stepY = 159.34;
+
+    for (let y = -80; y < 2128; y += stepY) {
+      const row = Math.round(y / stepY);
+      const offsetX = (row % 2 === 0) ? 0 : stepX / 2;
+      for (let x = -80; x < 2128; x += stepX) {
+        const grad = ctx.createRadialGradient(x + offsetX, y, holeR * 0.88, x + offsetX, y, holeR);
+        grad.addColorStop(0, "rgba(0,0,0,1)");
+        grad.addColorStop(0.85, "rgba(0,0,0,1)");
+        grad.addColorStop(1, "rgba(255,255,255,1)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x + offsetX, y, holeR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    const perforatedTex = new THREE.CanvasTexture(texCanvas);
+    perforatedTex.wrapS = THREE.RepeatWrapping;
+    perforatedTex.wrapT = THREE.RepeatWrapping;
+    perforatedTex.repeat.set(3.8, 2.8);
+    perforatedTex.generateMipmaps = true;
+    perforatedTex.minFilter = THREE.LinearMipmapLinearFilter;
+    perforatedTex.magFilter = THREE.LinearFilter;
+
+    // 4. Materials
+    const rimMaterial = new THREE.MeshStandardMaterial({
+      color: 0xd4b06a,
+      metalness: 0.92,
+      roughness: 0.2,
+    });
+
+    const meshMaterial = new THREE.MeshStandardMaterial({
+      color: 0xc49f56,
+      metalness: 0.9,
+      roughness: 0.26,
+      alphaMap: perforatedTex,
+      transparent: true,
+      opacity: 0.98,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    // 5. Geometry
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const a = 2.25;
+    const b = 1.35;
+    const h = 0.38;
+    const planes = ["xy", "yz", "zx"];
+
+    planes.forEach((plane) => {
+      const curve = new THREE.Curve();
+      curve.getPoint = function (t) {
+        const theta = t * Math.PI * 2;
+        const cos = Math.cos(theta);
+        const sin = Math.sin(theta);
+        const saddle = h * Math.sin(2 * theta);
+        if (plane === "xy") return new THREE.Vector3(a * cos, b * sin, saddle);
+        if (plane === "yz") return new THREE.Vector3(saddle, a * cos, b * sin);
+        return new THREE.Vector3(b * sin, saddle, a * cos);
+      };
+
+      const tubeGeom = new THREE.TubeGeometry(curve, 512, 0.045, 32, true);
+      group.add(new THREE.Mesh(tubeGeom, rimMaterial));
+
+      const surfGeom = new THREE.BufferGeometry();
+      const uSegs = 240;
+      const vSegs = 64;
+      const positions = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let j = 0; j <= vSegs; j++) {
+        const v = j / vSegs;
+        const curA = (a - 0.02) * v;
+        const curB = (b - 0.02) * v;
+        const curH = h * Math.pow(v, 1.4);
+        for (let i = 0; i <= uSegs; i++) {
+          const u = i / uSegs;
+          const theta = u * Math.PI * 2;
+          const cos = Math.cos(theta);
+          const sin = Math.sin(theta);
+          const saddle = curH * Math.sin(2 * theta);
+          let x = 0, y = 0, z = 0;
+          if (plane === "xy") { x = curA * cos; y = curB * sin; z = saddle; }
+          else if (plane === "yz") { x = saddle; y = curA * cos; z = curB * sin; }
+          else { x = curB * sin; y = saddle; z = curA * cos; }
+          positions.push(x, y, z);
+          uvs.push(u * 5, v * 3);
+        }
+      }
+
+      for (let j = 0; j < vSegs; j++) {
+        for (let i = 0; i < uSegs; i++) {
+          const p1 = j * (uSegs + 1) + i;
+          const p2 = (j + 1) * (uSegs + 1) + i;
+          const p3 = (j + 1) * (uSegs + 1) + (i + 1);
+          const p4 = j * (uSegs + 1) + (i + 1);
+          indices.push(p1, p2, p4);
+          indices.push(p2, p3, p4);
+        }
+      }
+
+      surfGeom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      surfGeom.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+      surfGeom.setIndex(indices);
+      surfGeom.computeVertexNormals();
+      group.add(new THREE.Mesh(surfGeom, meshMaterial));
+    });
+
+    // 6. Mathematically Perfect Quaternion Looping
+    const diagonalAxis = new THREE.Vector3(0.68, 1.0, 0.46).normalize();
+    const tiltQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.48, 0.52, 0.22));
+    const spinQuat = new THREE.Quaternion();
+    const frameQuat = new THREE.Quaternion();
+
+    function setFrameRotation(frameIndex) {
+      const t = frameIndex / TOTAL_FRAMES; // Exactly 0.0 to (239/240)
+      const angle = t * Math.PI * 2;
+      spinQuat.setFromAxisAngle(diagonalAxis, angle);
+      frameQuat.copy(spinQuat).multiply(tiltQuat);
+      group.quaternion.copy(frameQuat);
+    }
+
+    // Initial view render
+    setFrameRotation(0);
+    renderer.render(scene, camera);
+    statusEl.innerText = "Ready to Export (240 Frames @ 60 FPS)";
+    substatusEl.innerText = "Click below or waiting for auto-start...";
+
+    // Helper: Upload a frame with retry
+    async function sendFrameWithRetry(idx, blob, maxRetries = 3) {
+      for (let r = 0; r < maxRetries; r++) {
+        try {
+          const res = await fetch('/save_frame', {
+            method: 'POST',
+            headers: { 'X-Frame-Index': idx.toString() },
+            body: blob
+          });
+          if (res.ok) return true;
+        } catch (e) {
+          await new Promise(res => setTimeout(res, 200 * (r + 1)));
+        }
+      }
+      throw new Error(`Failed to upload frame ${idx} after ${maxRetries} attempts`);
+    }
+
+    // Main Server Export Flow (Pipelines rendering and upload sequentially to prevent memory blowout)
+    async function startExport() {
+      btnStart.disabled = true;
+      btnWebm.disabled = true;
+
+      try {
+        statusEl.innerText = "Connecting to record server...";
+        await fetch('/clear_frames', { method: 'POST' });
+
+        statusEl.innerText = `Rendering & Uploading Frames...`;
+        
+        for (let i = 0; i < TOTAL_FRAMES; i++) {
+          setFrameRotation(i);
+          renderer.render(scene, camera);
+
+          const blob = await new Promise(resolve => renderer.domElement.toBlob(resolve, 'image/png'));
+          await sendFrameWithRetry(i, blob);
+
+          const pct = Math.round(((i + 1) / TOTAL_FRAMES) * 100);
+          progressBar.style.width = `${pct}%`;
+          statusEl.innerText = `Frame ${i + 1} / ${TOTAL_FRAMES} (${pct}%)`;
+          substatusEl.innerText = `Rendered & sent frame_${String(i).padStart(4, '0')}.png`;
+
+          // Yield execution frame to let browser render UI
+          if (i % 5 === 0) {
+            await new Promise(r => setTimeout(r, 0));
+          }
+        }
+
+        statusEl.innerText = "Encoding 60FPS Video with FFmpeg...";
+        substatusEl.innerText = "Running FFmpeg VP9 & H.264 high-quality encoders...";
+
+        const encRes = await fetch('/encode_video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fps: FPS, total_frames: TOTAL_FRAMES })
+        });
+
+        if (encRes.ok) {
+          statusEl.innerText = "COMPLETE! Seamless Loop Saved.";
+          substatusEl.innerText = "Files saved to docs/assets/ and frontend/public/";
+          document.title = "RECORDING_COMPLETE";
+        } else {
+          statusEl.innerText = "FFmpeg Encoding Failed.";
+          substatusEl.innerText = "Check Python terminal for error details.";
+        }
+      } catch (err) {
+        statusEl.innerText = "Error during export";
+        substatusEl.innerText = err.message;
+        console.error(err);
+      } finally {
+        btnStart.disabled = false;
+        btnWebm.disabled = false;
+      }
+    }
+
+    // Alternative: Direct Browser WebM Recording using MediaRecorder API
+    async function recordDirectWebM() {
+      btnStart.disabled = true;
+      btnWebm.disabled = true;
+      statusEl.innerText = "Recording WebM via MediaRecorder...";
+
+      const stream = renderer.domElement.captureStream(60);
+      const recorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9',
+        videoBitsPerSecond: 12000000
+      });
+
+      const chunks = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+      const finished = new Promise(resolve => {
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'borromean_banner.webm';
+          a.click();
+          resolve();
+        };
+      });
+
+      recorder.start();
+
+      for (let i = 0; i < TOTAL_FRAMES; i++) {
+        setFrameRotation(i);
+        renderer.render(scene, camera);
+        const pct = Math.round(((i + 1) / TOTAL_FRAMES) * 100);
+        progressBar.style.width = `${pct}%`;
+        statusEl.innerText = `Recording frame ${i + 1} / ${TOTAL_FRAMES}`;
+        await new Promise(r => setTimeout(r, 1000 / FPS));
+      }
+
+      recorder.stop();
+      await finished;
+
+      statusEl.innerText = "Downloaded direct WebM!";
+      substatusEl.innerText = "File downloaded to your browser.";
+      btnStart.disabled = false;
+      btnWebm.disabled = false;
+    }
+
+    // Auto-start server export 1s after load
+    setTimeout(startExport, 1000);
+  </script>
+</body>
+</html>
