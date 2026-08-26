@@ -126,7 +126,13 @@ async def stream_generation(
                 "pdf_url": f"/generate/{generation.id}/download",
             }}
 
-        return EventSourceResponse(cached_event_generator())
+        # Explicit CORS headers for SSE (browsers block EventSource without them even if middleware mis-handles streaming)
+        cors_headers = {
+            "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
+            "Access-Control-Allow-Credentials": "true",
+            "Cache-Control": "no-cache",
+        }
+        return EventSourceResponse(cached_event_generator(), headers=cors_headers)
 
     # --- Live path: only for pending/running ---
     result = await db.execute(select(User).where(User.id == user_id))
@@ -140,9 +146,13 @@ async def stream_generation(
     else:
         if not user.openrouter_api_key:
             raise HTTPException(status_code=400, detail="OpenRouter API key not set")
-        api_key = decrypt(user.openrouter_api_key)
+        try:
+            api_key = decrypt(user.openrouter_api_key)
+        except Exception as e:
+            logger.exception("Failed to decrypt stored OpenRouter key for user %s", user_id)
+            raise HTTPException(status_code=500, detail="Failed to decrypt stored API key — re-save it via dashboard (ENCRYPTION_KEY may have changed)") from e
 
-    llm = LLMClient(api_key, groq_api_key=settings.groq_api_key or None)
+    llm = LLMClient(api_key, groq_api_key=getattr(settings, "groq_api_key", "") or None)
     orchestrator = Orchestrator(generation_id, llm, db)
 
     async def event_generator():
@@ -175,7 +185,12 @@ async def stream_generation(
         finally:
             await llm.close()
 
-    return EventSourceResponse(event_generator())
+    live_cors_headers = {
+        "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
+        "Access-Control-Allow-Credentials": "true",
+        "Cache-Control": "no-cache",
+    }
+    return EventSourceResponse(event_generator(), headers=live_cors_headers)
 
 
 @router.get("/{generation_id}/download")
@@ -229,7 +244,11 @@ async def download_pdf(
         </body>
         </html>
     """)
-    pdf_bytes = HTML(string=html_content).write_pdf()
+    try:
+        pdf_bytes = HTML(string=html_content).write_pdf()
+    except Exception as e:
+        logger.exception("PDF rendering failed for %s: %s", generation_id, e)
+        raise HTTPException(status_code=500, detail=f"PDF rendering failed: {e}")
 
     return Response(
         content=pdf_bytes,

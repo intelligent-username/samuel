@@ -63,6 +63,19 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Startup banner — clear host addresses (0.0.0.0 is inside container, show localhost for user)
+    banner = (
+        "\n"
+        "  Samuel ready\n"
+        "  ──────────────────────────────────────\n"
+        "  Frontend → http://localhost:3000\n"
+        "  Backend  → http://localhost:8000  (health: /health)\n"
+        "  Database → postgresql://samuel:***@localhost:5432/samuel (container: db:5432)\n"
+        "  ──────────────────────────────────────\n"
+    )
+    logger.info(banner)
+    print(banner, flush=True)
     
     yield
 
@@ -76,12 +89,44 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(lifespan=lifespan)
 
+# Ensure CORS headers are present even on 500/error responses (EventSource is strict)
+@app.middleware("http")
+async def _force_cors_headers(request, call_next):
+    from fastapi import HTTPException as FastHTTPException
+    from fastapi.responses import JSONResponse
+
+    try:
+        response = await call_next(request)
+    except FastHTTPException as e:
+        # Preserve HTTPException status/detail but ensure CORS headers are still added
+        logger.warning("HTTPException on %s %s: %s %s", request.method, request.url.path, e.status_code, e.detail)
+        response = JSONResponse(status_code=e.status_code, content={"detail": e.detail}, headers=getattr(e, "headers", None))
+    except Exception as e:
+        # Ensure even unhandled 500s get CORS headers so browser can read the error
+        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+        response = JSONResponse(status_code=500, content={"detail": str(e) or "Internal Server Error"})
+    # Always attach CORS for localhost:3000 (EventSource requires it even on errors)
+    origin = request.headers.get("origin")
+    if origin in ("http://localhost:3000", "http://127.0.0.1:3000") or (origin and origin.startswith("http://localhost:")):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Expose-Headers"] = "*"
+    # Also handle preflight
+    if request.method == "OPTIONS":
+        response.headers["Access-Control-Allow-Origin"] = origin or "http://localhost:3000"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origin_regex=r"http://localhost:\d+",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
     max_age=600,
 )
 
