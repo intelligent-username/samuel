@@ -1,8 +1,11 @@
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.generation import Generation
 
 from app.config import settings
 from app.database import get_db
@@ -109,3 +112,21 @@ async def list_resumes(request: Request, db: AsyncSession = Depends(get_db)) -> 
     )
     resumes = result.scalars().all()
     return [ResumeResponse.model_validate(r) for r in resumes]
+
+
+@router.delete("/resumes/{resume_id}")
+async def delete_resume(resume_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """Delete an uploaded resume and its associated generations."""
+    user_id = get_session_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    result = await db.execute(select(Resume).where(Resume.id == resume_id, Resume.user_id == user_id))
+    resume = result.scalar_one_or_none()
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    await db.execute(delete(Generation).where(Generation.resume_id == resume.id, Generation.user_id == user_id))
+    await db.delete(resume)
+    await db.commit()
+    return {"message": "Resume deleted"}

@@ -66,6 +66,14 @@ export async function listResumes(): Promise<Resume[]> {
   return fetchApi<Resume[]>("/resume/resumes");
 }
 
+export async function deleteResume(id: string): Promise<void> {
+  await fetchApi(`/resume/resumes/${id}`, { method: "DELETE" });
+}
+
+export async function deleteGeneration(id: string): Promise<void> {
+  await fetchApi(`/history/${id}`, { method: "DELETE" });
+}
+
 export async function startGeneration(resumeId: string, jobDescription: string): Promise<Generation> {
   return fetchApi<Generation>("/generate/", {
     method: "POST",

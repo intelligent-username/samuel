@@ -11,8 +11,9 @@ import remarkFrontmatter from "remark-frontmatter";
 import {
   syncRepos, listRepos, uploadResume, saveApiKey,
   getKeyStatus, listResumes, startGeneration, fetchMe, logout, fetchGenerations,
+  deleteResume, deleteGeneration,
 } from "@/lib/api";
-import type { Repository, Resume } from "@/lib/types";
+import type { Generation, Repository, Resume } from "@/lib/types";
 import BorromeanLogo from "@/components/BorromeanLogo";
 
 type Message = { text: string; type: "info" | "success" | "error" };
@@ -267,6 +268,31 @@ export default function DashboardPage() {
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [resumeMenuOpen, setResumeMenuOpen] = useState(false);
+  const [deletingResumeId, setDeletingResumeId] = useState<string | null>(null);
+  const resumeMenuRef = useRef<HTMLDivElement>(null);
+
+  const formatResumeDate = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
+      const isCurrentYear = d.getFullYear() === new Date().getFullYear();
+      return d.toLocaleDateString("en-US", isCurrentYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
+    } catch { return ""; }
+  };
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("samuel_job_desc");
+      if (saved) setJobDesc((prev) => prev || saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("samuel_job_desc", jobDesc);
+    } catch {}
+  }, [jobDesc]);
 
   // Job description validation helpers
   const JD_MAX = 8000;
@@ -323,9 +349,75 @@ export default function DashboardPage() {
       setEnvConfigured(k.env_configured);
       if (u) setUsername(u.github_username);
     });
+    return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (!resumeMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (resumeMenuRef.current && !resumeMenuRef.current.contains(e.target as Node)) {
+        setResumeMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setResumeMenuOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [resumeMenuOpen]);
+
   const flash = (text: string, type: Message["type"] = "info") => setMsg({ text, type });
+
+  const handleDeleteResume = async (resume: Resume, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (deletingResumeId) return;
+    setDeletingResumeId(resume.id);
+    try {
+      if (resume.is_generated) {
+        await deleteGeneration(resume.id);
+      } else {
+        await deleteResume(resume.id);
+      }
+      const wasSelected = selectedResumeId === resume.id;
+      try {
+        const [freshResumes, freshGens] = await Promise.all([
+          listResumes().catch(() => [] as Resume[]),
+          fetchGenerations().catch(() => [] as Generation[]),
+        ]);
+        const genResumes: Resume[] = (freshGens || [])
+          .filter((g) => g.status === "completed" && g.rewritten_resume_text)
+          .map((g) => {
+            const d = new Date(g.created_at);
+            const ts = d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+            return { id: g.id, original_filename: `Tailored Resume (${ts})`, is_generated: true, created_at: g.created_at };
+          });
+        const combined = [...freshResumes, ...genResumes];
+        setResumes(combined);
+        if (wasSelected) {
+          if (combined.length > 0) setSelectedResumeId(combined[0].id);
+          else setSelectedResumeId("");
+        }
+      } catch {
+        setResumes((prev) => prev.filter((r) => r.id !== resume.id));
+        if (wasSelected) {
+          const remaining = resumes.filter((r) => r.id !== resume.id);
+          setSelectedResumeId(remaining.length > 0 ? remaining[0].id : "");
+        }
+      }
+      flash(`Deleted: ${resume.original_filename}`, "success");
+    } catch (err: unknown) {
+      let msg = err instanceof Error ? err.message : "Delete failed";
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed?.detail) msg = typeof parsed.detail === "string" ? parsed.detail : msg;
+      } catch {}
+      flash(msg, "error");
+    } finally {
+      setDeletingResumeId(null);
+    }
+  };
 
   const handleSync = async () => {
     setSyncing(true);
@@ -605,6 +697,12 @@ export default function DashboardPage() {
             <textarea
               id="job-description" rows={12} placeholder="Paste the job description here..."
               value={jobDesc} onChange={(e) => setJobDesc(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  handleGenerate();
+                }
+              }}
               maxLength={8000}
               className="textarea" style={{ minHeight: "320px", fontSize: "0.85rem", lineHeight: "1.6" }}
             />
@@ -636,55 +734,171 @@ export default function DashboardPage() {
               title="Resume (PDF)"
               titleRight={
                 resumes.length > 0 ? (
-                  <select
-                    id="resume-select"
-                    value={selectedResumeId}
-                    onChange={(e) => setSelectedResumeId(e.target.value)}
-                    className="select"
-                    style={{
-                      maxWidth: "260px",
-                      marginLeft: "0.75rem",
-                      padding: "0.3rem 0.75rem",
-                      fontSize: "0.8rem",
-                      height: "auto",
-                      background: selectedResume?.is_generated ? "#0a192f" : "var(--color-background)",
-                      borderColor: selectedResume?.is_generated ? "var(--color-primary)" : "var(--color-border)",
-                      color: selectedResume?.is_generated ? "#93c5fd" : "var(--color-foreground)",
-                      transition: "background 0.15s ease, border-color 0.15s ease",
-                    }}
-                  >
-                    {uploadedResumes.length > 0 && generatedResumes.length > 0 ? (
-                      <>
-                        <optgroup label="Uploaded Resumes" style={{ background: "var(--color-card)", color: "var(--color-muted-fg)" }}>
-                          {uploadedResumes.map((r) => (
-                            <option key={r.id} value={r.id} style={{ background: "var(--color-card)", color: "var(--color-foreground)" }}>
-                              {r.original_filename}
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Generated Resumes" style={{ background: "#081320", color: "#60a5fa" }}>
-                          {generatedResumes.map((r) => (
-                            <option key={r.id} value={r.id} style={{ background: "#0a192f", color: "#93c5fd" }}>
-                              {r.original_filename}
-                            </option>
-                          ))}
-                        </optgroup>
-                      </>
-                    ) : (
-                      resumes.map((r) => (
-                        <option
-                          key={r.id}
-                          value={r.id}
-                          style={{
-                            background: r.is_generated ? "#0a192f" : "var(--color-card)",
-                            color: r.is_generated ? "#93c5fd" : "var(--color-foreground)",
-                          }}
-                        >
-                          {r.original_filename}
-                        </option>
-                      ))
+                  <div ref={resumeMenuRef} style={{ position: "relative", maxWidth: "260px", marginLeft: "0.75rem", flexShrink: 0 }}>
+                    <button
+                      id="resume-select"
+                      type="button"
+                      onClick={() => setResumeMenuOpen((o) => !o)}
+                      className="select"
+                      style={{
+                        width: "260px",
+                        maxWidth: "260px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.5rem",
+                        padding: "0.3rem 0.75rem",
+                        fontSize: "0.8rem",
+                        height: "auto",
+                        background: selectedResume?.is_generated ? "#0a192f" : "var(--color-background)",
+                        borderColor: selectedResume?.is_generated ? "var(--color-primary)" : "var(--color-border)",
+                        color: selectedResume?.is_generated ? "#93c5fd" : "var(--color-foreground)",
+                        transition: "background 0.15s, border-color 0.15s",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                      }}
+                      aria-haspopup="listbox"
+                      aria-expanded={resumeMenuOpen}
+                    >
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                        {selectedResume?.original_filename ?? "Select resume"}
+                      </span>
+                      <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", color: "var(--color-muted-fg)", fontSize: "0.65rem", transform: resumeMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>▼</span>
+                    </button>
+                    {resumeMenuOpen && (
+                      <div
+                        role="listbox"
+                        className="nm-card custom-scrollbar"
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 6px)",
+                          right: 0,
+                          width: "340px",
+                          maxWidth: "min(340px, 92vw)",
+                          maxHeight: "340px",
+                          overflowY: "auto",
+                          padding: "0.35rem",
+                          zIndex: 50,
+                          background: "var(--color-card)",
+                          border: "1px solid var(--color-border)",
+                          borderRadius: "10px",
+                          boxShadow: "var(--nm-mid)",
+                        }}
+                      >
+                        {(uploadedResumes.length > 0 && generatedResumes.length > 0
+                          ? [
+                              { label: "Uploaded Resumes", items: uploadedResumes },
+                              { label: "Generated Resumes", items: generatedResumes },
+                            ]
+                          : [{ label: null as string | null, items: resumes }]
+                        ).map((group) => (
+                          <div key={group.label ?? "all"}>
+                            {group.label && (
+                              <div style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--color-muted-fg)", textTransform: "uppercase", letterSpacing: "0.07em", padding: "0.45rem 0.55rem 0.2rem" }}>
+                                {group.label}
+                              </div>
+                            )}
+                            {group.items.map((r) => (
+                              <div
+                                key={r.id}
+                                role="option"
+                                aria-selected={r.id === selectedResumeId}
+                                onClick={() => {
+                                  setSelectedResumeId(r.id);
+                                  setResumeMenuOpen(false);
+                                }}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "0.5rem",
+                                  padding: "0.45rem 0.5rem 0.45rem 0.6rem",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  background: r.id === selectedResumeId ? "var(--color-muted)" : "transparent",
+                                  border: r.id === selectedResumeId ? "1px solid var(--color-border)" : "1px solid transparent",
+                                  transition: "background 0.12s",
+                                  marginBottom: "2px",
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (r.id !== selectedResumeId) e.currentTarget.style.background = "var(--color-muted)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (r.id !== selectedResumeId) e.currentTarget.style.background = "transparent";
+                                }}
+                              >
+                                <span
+                                  title={r.original_filename}
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    fontSize: "0.78rem",
+                                    fontWeight: r.id === selectedResumeId ? 600 : 400,
+                                    color: r.is_generated ? "#93c5fd" : "var(--color-foreground)",
+                                  }}
+                                >
+                                  {r.original_filename}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: "0.68rem",
+                                    color: "var(--color-muted-fg)",
+                                    opacity: 0.72,
+                                    whiteSpace: "nowrap",
+                                    flexShrink: 0,
+                                    fontVariantNumeric: "tabular-nums",
+                                    marginLeft: "auto",
+                                  }}
+                                >
+                                  {formatResumeDate(r.created_at)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteResume(r, e)}
+                                  disabled={deletingResumeId === r.id}
+                                  title={r.is_generated ? "Delete tailored resume" : "Delete resume"}
+                                  aria-label={`Delete ${r.original_filename}`}
+                                  style={{
+                                    width: "22px",
+                                    height: "22px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    borderRadius: "4px",
+                                    border: "1px solid transparent",
+                                    background: "transparent",
+                                    color: "var(--color-muted-fg)",
+                                    cursor: deletingResumeId === r.id ? "wait" : "pointer",
+                                    flexShrink: 0,
+                                    fontSize: "0.9rem",
+                                    lineHeight: 1,
+                                    transition: "all 0.15s",
+                                    opacity: 0.85,
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = "rgba(153,27,27,0.14)";
+                                    e.currentTarget.style.color = "var(--color-destructive)";
+                                    e.currentTarget.style.borderColor = "rgba(153,27,27,0.2)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = "transparent";
+                                    e.currentTarget.style.color = "var(--color-muted-fg)";
+                                    e.currentTarget.style.borderColor = "transparent";
+                                  }}
+                                >
+                                  {deletingResumeId === r.id ? <span className="spinner spinner-sm" style={{ width: "10px", height: "10px", borderWidth: "2px" }} /> : "×"}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
                     )}
-                  </select>
+                  </div>
                 ) : null
               }
             >
