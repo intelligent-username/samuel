@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Test SMIL vs CSS in SVG</title>
+</head>
+<body style="background: #111; color: white;">
+  <h2>Test 1: SMIL discrete values</h2>
+  <svg width="300" height="150" viewBox="0 0 300 150">
+    <rect width="300" height="150" fill="#222"/>
+    <g id="smil-box1">
+      <animate attributeName="opacity" calcMode="discrete" dur="2s" repeatCount="indefinite"
+               values="1;0;0" keyTimes="0;0.33;1" />
+      <circle cx="75" cy="75" r="40" fill="gold"/>
+    </g>
+    <g id="smil-box2">
+      <animate attributeName="opacity" calcMode="discrete" dur="2s" repeatCount="indefinite"
+               values="0;1;0" keyTimes="0;0.33;0.66" />
+      <circle cx="150" cy="75" r="40" fill="cyan"/>
+    </g>
+    <g id="smil-box3">
+      <animate attributeName="opacity" calcMode="discrete" dur="2s" repeatCount="indefinite"
+               values="0;0;1" keyTimes="0;0.66;1" />
+      <circle cx="225" cy="75" r="40" fill="crimson"/>
+    </g>
+  </svg>
+
+  <h2>Test 2: CSS display keyframes</h2>
+  <svg width="300" height="150" viewBox="0 0 300 150">
+    <style>
+      .c { display: none; }
+      .c1 { animation: k1 2s infinite step-end; }
+      .c2 { animation: k2 2s infinite step-end; }
+      .c3 { animation: k3 2s infinite step-end; }
+      @keyframes k1 { 0% { display: inline; } 33% { display: none; } 100% { display: none; } }
+      @keyframes k2 { 0% { display: none; } 33% { display: inline; } 66% { display: none; } 100% { display: none; } }
+      @keyframes k3 { 0% { display: none; } 66% { display: inline; } 100% { display: inline; } }
+    </style>
+    <rect width="300" height="150" fill="#222"/>
+    <circle class="c c1" cx="75" cy="75" r="40" fill="gold"/>
+    <circle class="c c2" cx="150" cy="75" r="40" fill="cyan"/>
+    <circle class="c c3" cx="225" cy="75" r="40" fill="crimson"/>
+  </svg>
+</body>
+</html>

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pure Scalable Dynamic SVG Borromean Banner (Infinite Zoom)</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000000;
+      color: #e5e5eb;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 20px;
+    }
+    header { text-align: center; margin-bottom: 20px; }
+    h1 { font-size: 22px; font-weight: 700; color: #d4b06a; margin: 0 0 6px 0; }
+    p { color: #888899; font-size: 13px; margin: 0; }
+    .card {
+      background: #000000;
+      border: 1px solid #1c1c22;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.95);
+      width: 100%;
+      max-width: 1100px;
+    }
+    .header {
+      padding: 12px 20px;
+      font-weight: 600;
+      font-size: 13px;
+      border-bottom: 1px solid #1c1c22;
+      color: #d4b06a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #08080b;
+    }
+    .badge {
+      background: rgba(52, 211, 153, 0.12);
+      border: 1px solid rgba(52, 211, 153, 0.25);
+      color: #34d399;
+      padding: 2px 8px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      aspect-ratio: 16 / 9;
+      background: #000000;
+    }
+    .stats-card {
+      margin-top: 16px;
+      background: #09090d;
+      border: 1px solid #1c1c24;
+      border-radius: 10px;
+      padding: 12px 20px;
+      width: 100%;
+      max-width: 1100px;
+      box-sizing: border-box;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .stat-label {
+      color: #71717a;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .stat-val {
+      color: #e4e4e7;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .stat-highlight {
+      color: #34d399;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Pure Scalable Dynamic SVG Borromean Banner</h1>
+    <p>Native SVG viewBox • Infinite Zoom Resolution • Central Gravitational Pull • +5% Compounding Wall Bounce</p>
+  </header>
+
+  <div class="card">
+    <div class="header">
+      <span>Vector Retained-Mode SVG DOM Renderer</span>
+      <span class="badge" id="fpsBadge">60 FPS • Infinite Vector Scalability</span>
+    </div>
+    
+    <svg id="borromeanSVG" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <radialGradient id="bloomGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
+          <stop offset="20%" stop-color="#fbbf24" stop-opacity="0.50" />
+          <stop offset="60%" stop-color="#38bdf8" stop-opacity="0.20" />
+          <stop offset="100%" stop-color="#38bdf8" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+
+      <!-- Ring 0 Wash & Wireframe -->
+      <path id="svg_wash_0" fill="rgba(14,165,233,0.08)" stroke="none" />
+      <path id="svg_conc_0" fill="none" stroke="rgba(56,189,248,0.35)" stroke-width="0.8" />
+      <path id="svg_rad_0" fill="none" stroke="rgba(56,189,248,0.20)" stroke-width="0.5" />
+
+      <!-- Ring 1 Wash & Wireframe -->
+      <path id="svg_wash_1" fill="rgba(234,179,8,0.10)" stroke="none" />
+      <path id="svg_conc_1" fill="none" stroke="rgba(245,158,11,0.38)" stroke-width="0.8" />
+      <path id="svg_rad_1" fill="none" stroke="rgba(253,224,71,0.20)" stroke-width="0.5" />
+
+      <!-- Ring 2 Wash & Wireframe -->
+      <path id="svg_wash_2" fill="rgba(245,158,11,0.07)" stroke="none" />
+      <path id="svg_conc_2" fill="none" stroke="rgba(212,176,106,0.32)" stroke-width="0.8" />
+      <path id="svg_rad_2" fill="none" stroke="rgba(245,215,130,0.18)" stroke-width="0.5" />
+
+      <!-- 3D Curved Intersection Seams -->
+      <path id="svg_seams" fill="none" stroke="rgba(224,242,254,0.32)" stroke-width="0.9" stroke-linecap="round" />
+
+      <!-- Metallic Rims -->
+      <path id="svg_rim_0" fill="none" stroke="#c29b4e" stroke-width="6.1" stroke-linecap="round" stroke-linejoin="round" />
+      <path id="svg_sheen_0" fill="none" stroke="#38bdf8" stroke-width="2.0" stroke-linecap="round" opacity="0.85" />
+
+      <path id="svg_rim_1" fill="none" stroke="#d4b06a" stroke-width="6.1" stroke-linecap="round" stroke-linejoin="round" />
+      <path id="svg_sheen_1" fill="none" stroke="#fde047" stroke-width="2.0" stroke-linecap="round" opacity="0.85" />
+
+      <path id="svg_rim_2" fill="none" stroke="#c49a4e" stroke-width="6.1" stroke-linecap="round" stroke-linejoin="round" />
+      <path id="svg_sheen_2" fill="none" stroke="#ffd782" stroke-width="2.0" stroke-linecap="round" opacity="0.85" />
+
+      <!-- Penetration Nodes -->
+      <g id="svg_nodes">
+        <circle r="1.8" fill="#bae6fd" opacity="0.3" />
+        <circle r="1.8" fill="#bae6fd" opacity="0.3" />
+        <circle r="1.8" fill="#bae6fd" opacity="0.3" />
+        <circle r="1.8" fill="#bae6fd" opacity="0.3" />
+        <circle r="1.8" fill="#bae6fd" opacity="0.3" />
+        <circle r="1.8" fill="#bae6fd" opacity="0.3" />
+      </g>
+
+      <!-- Center Bloom -->
+      <circle id="svg_bloom" r="16" fill="url(#bloomGrad)" />
+    </svg>
+  </div>
+
+  <div class="stats-card">
+    <div class="stat-item">
+      <span class="stat-label">Format Strategy</span>
+      <span class="stat-val stat-highlight">Pure SVG (Infinite Scale)</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Resolution Model</span>
+      <span class="stat-val stat-highlight">viewBox 1920x1080 (0 rasterization)</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Spatial Physics</span>
+      <span class="stat-val stat-highlight">Center Gravity + Compounding Bounce</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Frame Execution</span>
+      <span class="stat-val" id="renderTimeVal">0.12ms</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Spatial Drift Coordinates</span>
+      <span class="stat-val" id="spatialCoords">X: 0.00 | Y: 0.00 | Z: 0.00</span>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const svg = document.getElementById("borromeanSVG");
+      const fpsBadge = document.getElementById("fpsBadge"), renderTimeVal = document.getElementById("renderTimeVal"), spatialCoords = document.getElementById("spatialCoords");
+
+      const W = 1920, H = 1080, D = 7.6, S = 1220;
+      const A = 2.23, B = 1.33, HH = 0.38;
+
+      const saddlePt = (t, v = 1.0) => {
+        const th = t * Math.PI * 2;
+        return [A * v * Math.cos(th), B * v * Math.sin(th), HH * Math.pow(v, 1.4) * Math.sin(2 * th)];
+      };
+
+      const rings = [0, 1, 2].map(rIdx => {
+        const perm = p => rIdx === 0 ? p : rIdx === 1 ? [p[2], p[0], p[1]] : [p[1], p[2], p[0]];
+        const concLoops = Array.from({ length: 8 }, (_, c) => {
+          const v = (c + 1) / 8;
+          return { v, pts: Array.from({ length: 32 }, (_, i) => perm(saddlePt(i / 32, v))) };
+        });
+        const radRibs = Array.from({ length: 12 }, (_, r) => {
+          const t = r / 12;
+          return Array.from({ length: 7 }, (_, j) => perm(saddlePt(t, j / 6)));
+        });
+        const rimPts = Array.from({ length: 32 }, (_, i) => perm(saddlePt(i / 32, 1.0)));
+        return { rIdx, concLoops, radRibs, rimPts };
+      });
+
+      const seams = [
+        Array.from({ length: 16 }, (_, i) => {
+          const s = -1.0 + 2.0 * i / 15;
+          return [HH * s * (1 - s*s) * 1.5, 1.35 * s, -HH * (s*s - 1) * Math.sin(s * Math.PI) * 0.8];
+        }),
+        Array.from({ length: 16 }, (_, i) => {
+          const s = -1.0 + 2.0 * i / 15;
+          return [-HH * (s*s - 1) * Math.sin(s * Math.PI) * 0.8, HH * s * (1 - s*s) * 1.5, 1.35 * s];
+        }),
+        Array.from({ length: 16 }, (_, i) => {
+          const s = -1.0 + 2.0 * i / 15;
+          return [1.35 * s, -HH * (s*s - 1) * Math.sin(s * Math.PI) * 0.8, HH * s * (1 - s*s) * 1.5];
+        })
+      ];
+
+      const nodes = [[0,1.35,0], [0,-1.35,0], [0,0,1.35], [0,0,-1.35], [1.35,0,0], [-1.35,0,0]];
+
+      const svgPathClosed = pts => {
+        const n = pts.length;
+        let d = `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+        for (let i = 0; i < n; i++) {
+          const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+          const cp1x = (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1);
+          const cp1y = (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1);
+          const cp2x = (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1);
+          const cp2y = (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1);
+          d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+        }
+        return d + " Z";
+      };
+
+      const svgPathOpen = pts => {
+        const n = pts.length;
+        let d = `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+        for (let i = 0; i < n - 1; i++) {
+          const p0 = i > 0 ? pts[i - 1] : pts[0], p1 = pts[i], p2 = pts[i + 1], p3 = i + 2 < n ? pts[i + 2] : p2;
+          const cp1x = (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1);
+          const cp1y = (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1);
+          const cp2x = (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1);
+          const cp2y = (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1);
+          d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+        }
+        return d;
+      };
+
+      const pathRim0 = document.getElementById("svg_rim_0");
+      const pathRim1 = document.getElementById("svg_rim_1");
+      const pathRim2 = document.getElementById("svg_rim_2");
+      const pathSheen0 = document.getElementById("svg_sheen_0");
+      const pathSheen1 = document.getElementById("svg_sheen_1");
+      const pathSheen2 = document.getElementById("svg_sheen_2");
+      const pathConc0 = document.getElementById("svg_conc_0");
+      const pathConc1 = document.getElementById("svg_conc_1");
+      const pathConc2 = document.getElementById("svg_conc_2");
+      const pathRad0 = document.getElementById("svg_rad_0");
+      const pathRad1 = document.getElementById("svg_rad_1");
+      const pathRad2 = document.getElementById("svg_rad_2");
+      const pathWash0 = document.getElementById("svg_wash_0");
+      const pathWash1 = document.getElementById("svg_wash_1");
+      const pathWash2 = document.getElementById("svg_wash_2");
+      const pathSeams = document.getElementById("svg_seams");
+      const gNodes = document.getElementById("svg_nodes");
+      const bloomCircle = document.getElementById("svg_bloom");
+
+      const ringDOMElements = [
+        { rim: pathRim0, sheen: pathSheen0, conc: pathConc0, rad: pathRad0, wash: pathWash0 },
+        { rim: pathRim1, sheen: pathSheen1, conc: pathConc1, rad: pathRad1, wash: pathWash1 },
+        { rim: pathRim2, sheen: pathSheen2, conc: pathConc2, rad: pathRad2, wash: pathWash2 }
+      ];
+
+      // Randomize starting orientation quaternion uniformly on S^3
+      const u1 = Math.random(), u2 = Math.random(), u3 = Math.random();
+      const sq1 = Math.sqrt(1 - u1), sq2 = Math.sqrt(u1);
+      let Q = [
+        sq1 * Math.sin(2 * Math.PI * u2),
+        sq1 * Math.cos(2 * Math.PI * u2),
+        sq2 * Math.sin(2 * Math.PI * u3),
+        sq2 * Math.cos(2 * Math.PI * u3)
+      ];
+
+      // Randomize starting time & spatial wander phases (0 to 1000s offset)
+      const seedOffset = Math.random() * 1000;
+      const phaseX1 = Math.random() * Math.PI * 2, phaseX2 = Math.random() * Math.PI * 2;
+      const phaseY1 = Math.random() * Math.PI * 2, phaseY2 = Math.random() * Math.PI * 2;
+      const phaseZ1 = Math.random() * Math.PI * 2, phaseZ2 = Math.random() * Math.PI * 2;
+      const phaseW1 = Math.random() * Math.PI * 2, phaseW2 = Math.random() * Math.PI * 2, phaseW3 = Math.random() * Math.PI * 2;
+
+      let lastTime = performance.now(), frames = 0, lastFps = lastTime;
+      let bumpCount = 0, wasColliding = false;
+      let curX = 0, curY = 0, curZ = 0;
+
+      function render(now) {
+        const t0 = performance.now();
+        const dt = Math.min((now - lastTime) * 0.001, 0.05);
+        lastTime = now;
+        const t = now * 0.001 + seedOffset;
+
+        // 1. Dynamic 3D tumbling physics with randomized phase seeds
+        const wx = 0.72 + 0.32 * Math.sin(0.35 * t + phaseW1) + 0.18 * Math.cos(0.68 * t + phaseW2);
+        const wy = 0.98 + 0.38 * Math.cos(0.48 * t + phaseW2) + 0.22 * Math.sin(0.79 * t + phaseW3);
+        const wz = 0.62 + 0.28 * Math.sin(0.57 * t + phaseW3) + 0.16 * Math.cos(0.33 * t + phaseW1);
+        const wMag = Math.hypot(wx, wy, wz);
+
+        const dAngle = wMag * dt;
+        const hs = Math.sin(dAngle * 0.5), hc = Math.cos(dAngle * 0.5);
+        const dQ = [hc, (wx / wMag) * hs, (wy / wMag) * hs, (wz / wMag) * hs];
+
+        const nqw = dQ[0]*Q[0] - dQ[1]*Q[1] - dQ[2]*Q[2] - dQ[3]*Q[3];
+        const nqx = dQ[0]*Q[1] + dQ[1]*Q[0] + dQ[2]*Q[3] - dQ[3]*Q[2];
+        const nqy = dQ[0]*Q[2] - dQ[1]*Q[3] + dQ[2]*Q[0] + dQ[3]*Q[1];
+        const nqz = dQ[0]*Q[3] + dQ[1]*Q[2] - dQ[2]*Q[1] + dQ[3]*Q[0];
+        const qLen = Math.hypot(nqw, nqx, nqy, nqz);
+        Q = [nqw / qLen, nqx / qLen, nqy / qLen, nqz / qLen];
+
+        // 2. Spatial drift with central gravitational restorative pull & randomized trajectory phases
+        const targetX = 1.90 * Math.sin(0.28 * t + phaseX1) + 0.70 * Math.cos(0.52 * t + phaseX2);
+        const targetY = 0.85 * Math.cos(0.24 * t + phaseY1) + 0.40 * Math.sin(0.46 * t + phaseY2);
+        const targetZ = Math.min(0.35, 0.65 * Math.sin(0.21 * t + phaseZ1) + 0.20 * Math.cos(0.39 * t + phaseZ2));
+
+        // Central gravity factor: slightly weakened (0.91) to allow wider sweeps across canvas
+        const centerGravity = 0.91;
+        curX = targetX * centerGravity;
+        curY = targetY * centerGravity;
+        curZ = targetZ * centerGravity;
+
+        const x2 = Q[1]*2, y2 = Q[2]*2, z2 = Q[3]*2;
+        const xx = Q[1]*x2, xy = Q[1]*y2, xz = Q[1]*z2, yy = Q[2]*y2, yz = Q[2]*z2, zz = Q[3]*z2;
+        const wxq = Q[0]*x2, wyq = Q[0]*y2, wzq = Q[0]*z2;
+        const M = [
+          1 - (yy + zz), xy - wzq, xz + wyq,
+          xy + wzq, 1 - (xx + zz), yz - wxq,
+          xz - wyq, yz + wxq, 1 - (xx + yy)
+        ];
+
+        const proj = p => {
+          const rx = M[0]*p[0] + M[1]*p[1] + M[2]*p[2] + curX;
+          const ry = M[3]*p[0] + M[4]*p[1] + M[5]*p[2] + curY;
+          const rz = M[6]*p[0] + M[7]*p[1] + M[8]*p[2] + curZ;
+          const d = Math.max(0.1, D - rz);
+          return [W * 0.5 + (rx / d) * S, H * 0.5 - (ry / d) * S, rz];
+        };
+
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        const rawRings = rings.map(r => {
+          const rim = r.rimPts.map(proj);
+          rim.forEach(p => {
+            if (p[0] < minX) minX = p[0];
+            if (p[0] > maxX) maxX = p[0];
+            if (p[1] < minY) minY = p[1];
+            if (p[1] > maxY) maxY = p[1];
+          });
+          return {
+            rIdx: r.rIdx,
+            avgZ: rim.reduce((s, p) => s + p[2], 0) / rim.length,
+            rim,
+            conc: r.concLoops.map(c => ({ v: c.v, pts: c.pts.map(proj) })),
+            rad: r.radRibs.map(rib => rib.map(proj))
+          };
+        });
+
+        // Compounding 5% repulsion
+        const pad = 48;
+        const isColliding = minX < pad || maxX > W - pad || minY < pad || maxY > H - pad;
+        if (isColliding && !wasColliding) {
+          bumpCount++;
+        } else if (!isColliding && wasColliding) {
+          bumpCount = Math.max(0, bumpCount - 0.25);
+        }
+        wasColliding = isColliding;
+
+        const bumpMultiplier = Math.pow(1.05, bumpCount);
+        const repulsionStrength = 1.15 * bumpMultiplier;
+
+        let shiftX = 0, shiftY = 0;
+        if (minX < pad) shiftX = (pad - minX) * repulsionStrength;
+        else if (maxX > W - pad) shiftX = ((W - pad) - maxX) * repulsionStrength;
+        if (minY < pad) shiftY = (pad - minY) * repulsionStrength;
+        else if (maxY > H - pad) shiftY = ((H - pad) - maxY) * repulsionStrength;
+
+        const applyShift = pts => pts.map(p => [p[0] + shiftX, p[1] + shiftY, p[2]]);
+
+        rawRings.forEach(r => {
+          const dom = ringDOMElements[r.rIdx];
+          if (!dom.rim) return;
+
+          const shiftedRim = applyShift(r.rim);
+          const rimD = svgPathClosed(shiftedRim);
+          dom.rim.setAttribute("d", rimD);
+          dom.sheen.setAttribute("d", rimD);
+          dom.wash.setAttribute("d", rimD);
+
+          let concD = "";
+          r.conc.forEach(c => { concD += svgPathClosed(applyShift(c.pts)) + " "; });
+          dom.conc.setAttribute("d", concD);
+
+          let radD = "";
+          r.rad.forEach(rib => { radD += svgPathOpen(applyShift(rib)) + " "; });
+          dom.rad.setAttribute("d", radD);
+        });
+
+        if (pathSeams) {
+          let seamD = "";
+          seams.forEach(s => { seamD += svgPathOpen(applyShift(s.map(proj))) + " "; });
+          pathSeams.setAttribute("d", seamD);
+        }
+
+        if (gNodes) {
+          const nodeCircles = gNodes.children;
+          nodes.forEach((pt, idx) => {
+            const [px, py, pz] = proj(pt);
+            const circle = nodeCircles[idx];
+            if (circle) {
+              circle.setAttribute("cx", (px + shiftX).toFixed(1));
+              circle.setAttribute("cy", (py + shiftY).toFixed(1));
+              const op = Math.min(0.45, Math.max(0.15, (pz + 2.0) / 7.0));
+              circle.setAttribute("opacity", op.toFixed(2));
+            }
+          });
+        }
+
+        if (bloomCircle) {
+          const [cx, cy] = proj([0, 0, 0]);
+          bloomCircle.setAttribute("cx", (cx + shiftX).toFixed(1));
+          bloomCircle.setAttribute("cy", (cy + shiftY).toFixed(1));
+        }
+
+        frames++;
+        if (now - lastFps > 500) {
+          const fps = Math.round((frames * 1000) / (now - lastFps));
+          fpsBadge.textContent = `${fps} FPS • Infinite SVG Resolution`;
+          frames = 0;
+          lastFps = now;
+        }
+        const dtRender = (performance.now() - t0).toFixed(2);
+        renderTimeVal.textContent = `${dtRender}ms (Native SVG DOM)`;
+        spatialCoords.textContent = `X: ${curX.toFixed(2)} | Y: ${curY.toFixed(2)} | Z: ${curZ.toFixed(2)}`;
+
+        scheduleNext();
+      }
+
+      function scheduleNext() {
+        setTimeout(() => {
+          requestAnimationFrame(render);
+        }, 14);
+      }
+
+      scheduleNext();
+    })();
+  </script>
+</body>
+</html>
