@@ -256,6 +256,7 @@ export default function Borromean3DViewer({
       let prevMouseY = 0;
       let targetRotX = group.rotation.x;
       let targetRotY = group.rotation.y;
+      let targetRotZ = group.rotation.z;
 
       let onMouseDown: ((e: MouseEvent) => void) | undefined;
       let onMouseMove: ((e: MouseEvent) => void) | undefined;
@@ -291,21 +292,31 @@ export default function Borromean3DViewer({
         dom.style.pointerEvents = "none";
       }
 
-      // 7. Animation Loop
+      // 7. Dynamic Multi-Directional Organic Animation Loop
+      let time = 0;
       const animate = () => {
         animId = requestAnimationFrame(animate);
 
+        time += 0.012 * speedMult;
+
+        // Incommensurate harmonic oscillations create continuous, non-repeating 3D tumble
+        const deltaY = (0.0055 + 0.0035 * Math.sin(time * 0.73) + 0.0022 * Math.cos(time * 1.37)) * speedMult;
+        const deltaX = (0.0032 * Math.cos(time * 0.51) + 0.0028 * Math.sin(time * 0.93 + 1.2)) * speedMult;
+        const deltaZ = (0.0026 * Math.sin(time * 0.41) + 0.0020 * Math.cos(time * 0.81 + 2.3)) * speedMult;
+
         if (!interactive) {
-          group.rotation.y += 0.006 * speedMult;
-          group.rotation.x += 0.0035 * speedMult;
-          group.rotation.z += 0.0018 * speedMult;
+          group.rotation.y += deltaY;
+          group.rotation.x += deltaX;
+          group.rotation.z += deltaZ;
         } else {
           if (!isDragging) {
-            targetRotY += 0.005 * speedMult;
-            targetRotX += 0.0018 * speedMult;
+            targetRotY += deltaY;
+            targetRotX += deltaX;
+            targetRotZ += deltaZ;
           }
           group.rotation.y += (targetRotY - group.rotation.y) * 0.08;
           group.rotation.x += (targetRotX - group.rotation.x) * 0.08;
+          group.rotation.z += (targetRotZ - group.rotation.z) * 0.08;
         }
 
         renderer.render(scene, camera);

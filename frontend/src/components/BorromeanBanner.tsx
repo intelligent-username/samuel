@@ -249,11 +249,13 @@ export default function BorromeanBanner({
       };
       window.addEventListener("resize", handleResize);
 
+      let time = 0;
       const animate = () => {
         animId = requestAnimationFrame(animate);
-        currentAngle += 0.007 * speed;
-        group.rotation.copy(initialTilt);
-        group.rotateOnWorldAxis(diagonalAxis, currentAngle);
+        time += 0.012 * speed;
+        group.rotation.y += (0.0055 + 0.0035 * Math.sin(time * 0.73) + 0.0022 * Math.cos(time * 1.37)) * speed;
+        group.rotation.x += (0.0032 * Math.cos(time * 0.51) + 0.0028 * Math.sin(time * 0.93 + 1.2)) * speed;
+        group.rotation.z += (0.0026 * Math.sin(time * 0.41) + 0.0020 * Math.cos(time * 0.81 + 2.3)) * speed;
         renderer.render(scene, camera);
       };
       animate();

@@ -1,3 +1,4 @@
+import json
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
@@ -48,7 +49,7 @@ class Orchestrator:
         is_fallback = bool(sections.get("_fallback")) or (not sections.get("skills") and not sections.get("projects"))
         if is_fallback:
             # Emit warning before resume_writer so frontend can show it; do not abort generation
-            yield {"event": "warning", "data": {"message": "Could not detect Skills/Projects sections — using full resume text"}}
+            yield {"event": "warning", "data": json.dumps({"message": "Could not detect Skills/Projects sections — using full resume text"})}
 
         generation.status = "running"
         await self.db.commit()
@@ -58,7 +59,7 @@ class Orchestrator:
             return str(self.debug_dir)
 
         # Step 1: JD Parser
-        yield {"event": "step-start", "data": {"step": "jd_parser", "message": "Parsing job description..."}}
+        yield {"event": "step-start", "data": json.dumps({"step": "jd_parser", "message": "Parsing job description..."})}
         try:
             jd_req = await JDParserSkill().run(generation.job_description_text, self.llm, debug_dir=self.debug_dir)
         except Exception as e:
@@ -67,12 +68,12 @@ class Orchestrator:
                 await self.db.commit()
             except Exception:
                 await self.db.rollback()
-            yield {"event": "step-error", "data": {"step": "jd_parser", "message": str(e)}}
+            yield {"event": "step-error", "data": json.dumps({"step": "jd_parser", "message": str(e)})}
             raise
-        yield {"event": "step-done", "data": {"step": "jd_parser", "summary": f"Extracted {len(jd_req.keywords)} keywords, {len(jd_req.hard_requirements)} requirements"}}
+        yield {"event": "step-done", "data": json.dumps({"step": "jd_parser", "summary": f"Extracted {len(jd_req.keywords)} keywords, {len(jd_req.hard_requirements)} requirements"})}
 
         # Step 2: Project Matcher
-        yield {"event": "step-start", "data": {"step": "project_matcher", "message": "Matching projects to job..."}}
+        yield {"event": "step-start", "data": json.dumps({"step": "project_matcher", "message": "Matching projects to job..."})}
         try:
             jd_dict = jd_req.model_dump()
             repo_dicts = [
@@ -86,12 +87,12 @@ class Orchestrator:
                 await self.db.commit()
             except Exception:
                 await self.db.rollback()
-            yield {"event": "step-error", "data": {"step": "project_matcher", "message": str(e)}}
+            yield {"event": "step-error", "data": json.dumps({"step": "project_matcher", "message": str(e)})}
             raise
-        yield {"event": "step-done", "data": {"step": "project_matcher", "summary": f"Ranked {len(ranked)} projects by relevance"}}
+        yield {"event": "step-done", "data": json.dumps({"step": "project_matcher", "summary": f"Ranked {len(ranked)} projects by relevance"})}
 
         # Step 3: Resume Writer
-        yield {"event": "step-start", "data": {"step": "resume_writer", "message": "Rewriting resume skills and projects..."}}
+        yield {"event": "step-start", "data": json.dumps({"step": "resume_writer", "message": "Rewriting resume skills and projects..."})}
         try:
             rewritten = await ResumeWriterSkill().run(
                 skills_section=str(sections.get("skills", "")),
@@ -117,12 +118,12 @@ class Orchestrator:
                 await self.db.commit()
             except Exception:
                 await self.db.rollback()
-            yield {"event": "step-error", "data": {"step": "resume_writer", "message": str(e)}}
+            yield {"event": "step-error", "data": json.dumps({"step": "resume_writer", "message": str(e)})}
             raise
-        yield {"event": "step-done", "data": {"step": "resume_writer", "summary": "Skills and projects sections rewritten"}}
+        yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": "Skills and projects sections rewritten"})}
 
         # Step 4: ATS Checker
-        yield {"event": "step-start", "data": {"step": "ats_checker", "message": "Checking ATS compatibility..."}}
+        yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Checking ATS compatibility..."})}
         try:
             ats_report = await ATSCheckerSkill().run(rewritten_text, jd_req.keywords, self.llm, debug_dir=self.debug_dir)
         except Exception as e:
@@ -131,9 +132,9 @@ class Orchestrator:
                 await self.db.commit()
             except Exception:
                 await self.db.rollback()
-            yield {"event": "step-error", "data": {"step": "ats_checker", "message": str(e)}}
+            yield {"event": "step-error", "data": json.dumps({"step": "ats_checker", "message": str(e)})}
             raise
-        yield {"event": "step-done", "data": {"step": "ats_checker", "summary": f"ATS score: {ats_report.get('score', 'N/A')}/100"}}
+        yield {"event": "step-done", "data": json.dumps({"step": "ats_checker", "summary": f"ATS score: {ats_report.get('score', 'N/A')}/100"})}
 
         generation.rewritten_resume_text = rewritten_text
         generation.ats_report = ats_report
@@ -143,7 +144,7 @@ class Orchestrator:
         await self.db.commit()
 
         yield {"event": "output", "data": rewritten_text}
-        yield {"event": "done", "data": {"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0), "rewritten_resume": rewritten_text, "pdf_url": f"/generate/{self.generation_id}/download"}}
+        yield {"event": "done", "data": json.dumps({"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0), "rewritten_resume": rewritten_text, "pdf_url": f"/generate/{self.generation_id}/download"})}
 
     async def _get_user(self) -> User:
         # Fetch generation first to get user_id explicitly — avoids ambiguous join

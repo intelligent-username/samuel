@@ -84,7 +84,7 @@ export default function ResultsActionBar({
       <button
         type="button"
         onClick={onToggleJd}
-        className={`btn${jdOpen ? " btn-primary" : ""}`}
+        className="btn btn-primary"
         style={{
           height: "2.4rem",
           padding: "0 1.25rem",
@@ -98,7 +98,7 @@ export default function ResultsActionBar({
       <button
         type="button"
         onClick={onToggleHistory}
-        className={`btn${historyOpen ? " btn-primary" : ""}`}
+        className="btn btn-primary"
         style={{
           height: "2.4rem",
           padding: "0 1.25rem",

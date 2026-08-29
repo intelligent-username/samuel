@@ -9,7 +9,7 @@
 ## CRITICAL RULES
 
 ### Do NOT modify UI unless explicitly asked
-The frontend features a strict **Neumorphic design system** styled with CSS variables and Tailwind. Do not touch or modify components, typography, layout, themes, spacing, or neumorphic box-shadow structures unless explicitly requested.
+The frontend features a strict **Neumorphic design system** styled with CSS variables and Tailwind. Do not touch or modify components, typography, layout, themes, spacing, or neumorphic box-shadow structures unless explicitly requested. Refer to docs/guides/style-guide.html for the style guide.
 
 ### Keep code minimalistic & clean
 Avoid unnecessary abstractions, defensive programming for impossible states, boilerplate, or over-engineering. Write minimal, direct code following existing patterns. Do not add comments unless the logic is genuinely non-obvious.

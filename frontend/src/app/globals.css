@@ -140,6 +140,13 @@ a:hover { color: var(--color-primary); filter: brightness(1.2); }
 }
 .btn-accent:hover:not(:disabled) { filter: brightness(1.15); }
 
+.btn-success {
+  background: #1a9e6e;
+  color: #ffffff;
+  border-color: #1a9e6e;
+}
+.btn-success:hover:not(:disabled) { filter: brightness(1.15); }
+
 .btn-ghost {
   border-color: transparent;
   background: transparent;
