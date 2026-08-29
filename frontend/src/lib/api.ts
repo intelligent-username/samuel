@@ -96,3 +96,10 @@ export async function fetchGenerations(): Promise<Generation[]> {
 export async function fetchGeneration(id: string): Promise<Generation> {
   return fetchApi<Generation>(`/history/${id}`);
 }
+
+export async function updateGeneration(id: string, title: string): Promise<Generation> {
+  return fetchApi<Generation>(`/history/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+}

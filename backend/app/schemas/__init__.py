@@ -65,11 +65,17 @@ class GenerateRequest(BaseModel):
         return stripped
 
 
+class UpdateGenerationRequest(BaseModel):
+    """Request body to update generation metadata (e.g. custom title)."""
+    title: str = Field(..., max_length=255, description="Custom title for generation")
+
+
 class GenerationResponse(BaseModel):
     """Generation record returned to the frontend."""
     id: UUID
     status: str
     job_description_text: str
+    title: str | None = None
     rewritten_resume_text: str | None = None
     ats_report: dict[str, Any] | None = None
     created_at: datetime

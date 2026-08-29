@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.generation import Generation
-from app.schemas import GenerationResponse
+from app.schemas import GenerationResponse, UpdateGenerationRequest
 from app.services.auth import get_session_user_id
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -48,6 +48,33 @@ async def get_generation(
     gen = result.scalar_one_or_none()
     if not gen:
         raise HTTPException(status_code=404, detail="Generation not found")
+
+    return GenerationResponse.model_validate(gen)
+
+
+@router.patch("/{generation_id}")
+async def update_generation(
+    generation_id: uuid.UUID,
+    body: UpdateGenerationRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> GenerationResponse:
+    """Update a generation's custom title."""
+    user_id = get_session_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    result = await db.execute(
+        select(Generation).where(Generation.id == generation_id, Generation.user_id == user_id)
+    )
+    gen = result.scalar_one_or_none()
+    if not gen:
+        raise HTTPException(status_code=404, detail="Generation not found")
+
+    new_title = body.title.strip()
+    gen.title = new_title if new_title else None
+    await db.commit()
+    await db.refresh(gen)
 
     return GenerationResponse.model_validate(gen)
 

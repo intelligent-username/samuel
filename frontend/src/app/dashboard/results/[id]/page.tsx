@@ -248,6 +248,7 @@ export default function ResultsPage() {
                   generations={historyGenerations}
                   compact
                   onDeleted={(delId) => setHistoryGenerations((prev) => prev.filter((g) => g.id !== delId))}
+                  onUpdated={(upId, updated) => setHistoryGenerations((prev) => prev.map((g) => g.id === upId ? updated : g))}
                   onSelect={(selectedId) => {
                     setHistoryOpen(false);
                     router.push(`/dashboard/results/${selectedId}`);

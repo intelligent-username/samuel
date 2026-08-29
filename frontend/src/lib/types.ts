@@ -32,6 +32,7 @@ export interface Generation {
   id: string;
   status: "pending" | "running" | "completed" | "failed";
   job_description_text: string;
+  title?: string | null;
   rewritten_resume_text: string | null;
   ats_report: ATSReport | null;
   created_at: string;

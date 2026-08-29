@@ -135,6 +135,7 @@ export default function HistoryPage() {
         <HistoryList
           generations={generations}
           onDeleted={(id) => setGenerations((prev) => prev.filter((g) => g.id !== id))}
+          onUpdated={(id, updated) => setGenerations((prev) => prev.map((g) => g.id === id ? updated : g))}
         />
       </div>
     </div>

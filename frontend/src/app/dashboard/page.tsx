@@ -337,7 +337,7 @@ export default function DashboardPage() {
           const timeStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
           return {
             id: g.id,
-            original_filename: `Tailored Resume (${timeStr})`,
+            original_filename: g.title ? g.title : `Tailored Resume (${timeStr})`,
             is_generated: true,
             created_at: g.created_at,
           };
@@ -391,7 +391,12 @@ export default function DashboardPage() {
           .map((g) => {
             const d = new Date(g.created_at);
             const ts = d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-            return { id: g.id, original_filename: `Tailored Resume (${ts})`, is_generated: true, created_at: g.created_at };
+            return {
+              id: g.id,
+              original_filename: g.title ? g.title : `Tailored Resume (${ts})`,
+              is_generated: true,
+              created_at: g.created_at,
+            };
           });
         const combined = [...freshResumes, ...genResumes];
         setResumes(combined);
