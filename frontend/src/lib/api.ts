@@ -89,6 +89,10 @@ export function getDownloadUrl(generationId: string): string {
   return `${API}/generate/${generationId}/download`;
 }
 
+export function getPreviewHtmlUrl(generationId: string): string {
+  return `${API}/generate/${generationId}/preview-html`;
+}
+
 export async function fetchGenerations(): Promise<Generation[]> {
   return fetchApi<Generation[]>("/history/");
 }

@@ -32,11 +32,19 @@ export interface Generation {
   id: string;
   status: "pending" | "running" | "completed" | "failed";
   job_description_text: string;
+  target_jd?: string;
   title?: string | null;
   rewritten_resume_text: string | null;
   ats_report: ATSReport | null;
+  ats_score?: number;
+  error_message?: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface StepProgress {
+  step: string;
+  status: "running" | "done" | "error";
 }
 
 export interface ATSReport {
