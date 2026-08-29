@@ -1,300 +1,225 @@
 "use client";
 
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
-import { createGenerationStream } from "@/lib/api";
+import {
+  fetchGeneration,
+  fetchGenerations,
+  stopGeneration,
+  retryGeneration,
+} from "@/lib/api";
+import type { Generation } from "@/lib/types";
 
-type StepName =
-  | "jd_parser"
-  | "project_matcher"
-  | "resume_writer"
-  | "ats_checker";
+import { useGenerationStream } from "@/hooks/useGenerationStream";
+import JobDescriptionDrawer from "@/components/JobDescriptionDrawer";
+import HistoryDrawer from "@/components/HistoryDrawer";
+import GenerationProgressCard from "@/components/GenerationProgressCard";
+import ResumePreviewer from "@/components/ResumePreviewer";
+import ResultsActionBar from "@/components/ResultsActionBar";
 
-interface Step {
-  step: StepName;
-  label: string;
-  status: "pending" | "running" | "done" | "error";
-}
-
-const STEP_LABELS: Record<StepName, string> = {
-  jd_parser:        "Analyzing JD",
-  project_matcher:  "Matching projects",
-  resume_writer:    "Rewriting resume",
-  ats_checker:      "ATS check",
-};
-
-const INITIAL_STEPS: Step[] = (
-  ["jd_parser", "project_matcher", "resume_writer", "ats_checker"] as StepName[]
-).map((s) => ({ step: s, label: STEP_LABELS[s], status: "pending" }));
-
-// ── Status icon ──────────────────────────────────────────────────────────────
-function StepDot({ status }: { status: Step["status"] }) {
-  const base: React.CSSProperties = {
-    width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-    transition: "background 0.2s ease",
-  };
-  const colors: Record<Step["status"], string> = {
-    pending: "var(--color-border)",
-    running: "var(--color-primary)",
-    done:    "#1a9e6e",
-    error:   "var(--color-destructive)",
-  };
-  return (
-    <span style={{ ...base, background: colors[status],
-      boxShadow: status === "running" ? `0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent)` : "none",
-    }} />
-  );
-}
-
-// ── Thin progress bar at top of panel ────────────────────────────────────────
-function ProgressBar({ steps }: { steps: Step[] }) {
-  const done = steps.filter((s) => s.status === "done").length;
-  const pct  = Math.round((done / steps.length) * 100);
-  return (
-    <div style={{ height: 2, background: "var(--color-border)", borderRadius: 2, overflow: "hidden", marginBottom: "1rem" }}>
-      <div style={{ height: "100%", width: `${pct}%`, background: "var(--color-primary)", transition: "width 0.4s ease" }} />
-    </div>
-  );
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function ResultsPage() {
-  const params  = useParams<{ id: string }>();
-  const router  = useRouter();
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
 
-  const [steps, setSteps]               = useState<Step[]>(INITIAL_STEPS);
-  const [done, setDone]                 = useState(false);
-  const [panelVisible, setPanelVisible] = useState(true);
-  const [connectionError, setConnectionError] = useState(false);
-  const [atsScore, setAtsScore]         = useState<number | null>(null);
-  const [rewrittenResume, setRewrittenResume] = useState<string | null>(null);
-  const esRef = useRef<EventSource | null>(null);
+  const {
+    done,
+    atsScore,
+    rewrittenResume,
+    pdfBlobUrl,
+    fatalError,
+    setFatalError,
+    connectionError,
+    jobDescription,
+    setJobDescription,
+    generationTitle,
+    setGenerationTitle,
+  } = useGenerationStream(params.id);
 
-  const startStream = useCallback(() => {
-    let es: EventSource;
+  const [stopping, setStopping] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const [jdOpen, setJdOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyGenerations, setHistoryGenerations] = useState<Generation[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [loadingJd, setLoadingJd] = useState(false);
+  const [copiedJd, setCopiedJd] = useState(false);
+
+  const pdfFileName = generationTitle?.trim()
+    ? `${generationTitle.trim().replace(/[/\\:*?"<>|]/g, "").replace(/\.pdf$/i, "")}.pdf`
+    : "generated_resume.pdf";
+
+  const handleStopGeneration = async () => {
+    setStopping(true);
     try {
-      es = createGenerationStream(params.id);
+      await stopGeneration(params.id);
+      setFatalError("Generation stopped by user.");
     } catch {
-      setConnectionError(true);
-      return;
+      setFatalError("Failed to stop generation.");
+    } finally {
+      setStopping(false);
     }
-    esRef.current = es;
+  };
 
-    es.onerror = () => {
-      if (!done) {
-        setConnectionError(true);
-        setDone(true);
-        es.close();
-      }
-    };
+  const handleRetryGeneration = async () => {
+    setRetrying(true);
+    try {
+      await retryGeneration(params.id);
+      window.location.reload();
+    } catch {
+      setRetrying(false);
+    }
+  };
 
-    es.addEventListener("step-start", (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setSteps((prev) =>
-        prev.map((s) => s.step === data.step ? { ...s, status: "running" } : s)
-      );
-    });
+  const toggleJd = () => {
+    if (!jdOpen && !jobDescription) {
+      setLoadingJd(true);
+      fetchGeneration(params.id)
+        .then((gen) => {
+          if (gen.job_description_text) setJobDescription(gen.job_description_text);
+        })
+        .finally(() => setLoadingJd(false));
+    }
+    setJdOpen((v) => !v);
+  };
 
-    es.addEventListener("step-done", (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setSteps((prev) =>
-        prev.map((s) => s.step === data.step ? { ...s, status: "done" } : s)
-      );
-    });
+  const toggleHistory = () => {
+    if (!historyOpen) {
+      setLoadingHistory(true);
+      fetchGenerations()
+        .then((gens) => setHistoryGenerations(gens))
+        .finally(() => setLoadingHistory(false));
+    }
+    setHistoryOpen((v) => !v);
+  };
 
-    es.addEventListener("step-error", (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setSteps((prev) =>
-        prev.map((s) => s.step === data.step ? { ...s, status: "error" } : s)
-      );
-    });
-
-    es.addEventListener("done", (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setAtsScore(data.ats_score ?? null);
-      setRewrittenResume(data.rewritten_resume ?? null);
-      setDone(true);
-      // Auto-collapse after a short delay
-      setTimeout(() => setPanelVisible(false), 2200);
-      es.close();
-    });
-  }, [params.id]);
-
-  useEffect(() => {
-    startStream();
-    return () => esRef.current?.close();
-  }, [startStream]);
-
-  const allDone  = steps.every((s) => s.status === "done");
-  const hasError = steps.some((s) => s.status === "error");
-
-  // ── Timeline overlay panel ──────────────────────────────────────────────
-  const panel = panelVisible && (
-    <div
-      style={{
-        position: "fixed",
-        right: 0, top: 0, bottom: 0,
-        width: 220,
-        background: "var(--color-card)",
-        borderLeft: "1px solid var(--color-border)",
-        padding: "1.25rem 1rem",
-        zIndex: 50,
-        display: "flex",
-        flexDirection: "column",
-        gap: 0,
-        boxShadow: "-8px 0 24px rgba(0,0,0,0.35)",
-        animation: "slideInRight 0.25s ease",
-      }}
-    >
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem" }}>
-        <span style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-muted-fg)" }}>
-          {allDone ? "Complete" : hasError ? "Error" : "Generating"}
-        </span>
-        <button
-          onClick={() => setPanelVisible(false)}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted-fg)", lineHeight: 1, fontSize: "0.85rem", padding: "0 0.15rem" }}
-          title="Dismiss"
-        >
-          ×
-        </button>
-      </div>
-
-      <ProgressBar steps={steps} />
-
-      {/* Timeline */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 0, flex: 1 }}>
-        {steps.map((step, idx) => {
-          const isLast = idx === steps.length - 1;
-          return (
-            <div key={step.step} style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start" }}>
-              {/* Dot + connector */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
-                <div style={{ paddingTop: "0.15rem" }}>
-                  <StepDot status={step.status} />
-                </div>
-                {!isLast && (
-                  <div style={{
-                    width: 1, flex: 1, minHeight: 20,
-                    background: step.status === "done" ? "#1a9e6e" : "var(--color-border)",
-                    margin: "3px 0",
-                    transition: "background 0.3s ease",
-                  }} />
-                )}
-              </div>
-
-              {/* Label */}
-              <div style={{ paddingBottom: isLast ? 0 : "0.75rem" }}>
-                <span style={{
-                  fontSize: "0.775rem",
-                  fontWeight: step.status === "running" ? 600 : 400,
-                  color: step.status === "running"  ? "var(--color-foreground)"
-                       : step.status === "done"     ? "#1a9e6e"
-                       : step.status === "error"    ? "var(--color-destructive)"
-                       : "var(--color-muted-fg)",
-                  transition: "color 0.2s ease",
-                }}>
-                  {step.label}
-                </span>
-                {step.status === "running" && (
-                  <span style={{ display: "block", fontSize: "0.65rem", color: "var(--color-muted-fg)", marginTop: "0.1rem" }}>
-                    in progress…
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Connection error */}
-      {connectionError && (
-        <div style={{ marginTop: "auto", paddingTop: "0.75rem", borderTop: "1px solid var(--color-border)" }}>
-          <p style={{ fontSize: "0.72rem", color: "var(--color-destructive)", marginBottom: "0.5rem" }}>
-            Connection lost.
-          </p>
-          <button
-            onClick={() => { setConnectionError(false); setDone(false); setSteps(INITIAL_STEPS); startStream(); }}
-            className="btn btn-sm"
-            style={{ width: "100%", justifyContent: "center" }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  // ── Results body ────────────────────────────────────────────────────────
   return (
-    <>
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to   { transform: translateX(0);   opacity: 1; }
-        }
-      `}</style>
+    <div className="results-page-shell">
+      <div className="results-main-col">
+        {/* Drawers */}
+        <JobDescriptionDrawer
+          open={jdOpen}
+          onClose={() => setJdOpen(false)}
+          jobDescription={jobDescription}
+          loading={loadingJd}
+          copied={copiedJd}
+          onCopy={() => {
+            if (jobDescription) {
+              navigator.clipboard.writeText(jobDescription);
+              setCopiedJd(true);
+              setTimeout(() => setCopiedJd(false), 2000);
+            }
+          }}
+        />
 
-      {panel}
+        <HistoryDrawer
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          loading={loadingHistory}
+          generations={historyGenerations}
+          onDeleted={(delId) =>
+            setHistoryGenerations((prev) => prev.filter((g) => g.id !== delId))
+          }
+          onUpdated={(upId, updated) => {
+            setHistoryGenerations((prev) =>
+              prev.map((g) => (g.id === upId ? updated : g))
+            );
+            if (upId === params.id && updated.title) {
+              setGenerationTitle(updated.title);
+            }
+          }}
+          onSelect={(selectedId) => {
+            setHistoryOpen(false);
+            router.push(`/dashboard/results/${selectedId}`);
+          }}
+        />
 
-      <div style={{
-        minHeight: "100vh",
-        padding: "3rem 2rem",
-        maxWidth: 760,
-        margin: "0 auto",
-        paddingRight: panelVisible ? "calc(220px + 2rem)" : "2rem",
-        transition: "padding-right 0.3s ease",
-      }}>
-        <h1 style={{ fontSize: "1.75rem", fontWeight: 800, marginBottom: "0.4rem" }}>
-          {done && !hasError ? "Resume ready" : done && hasError ? "Generation failed" : "Generating resume…"}
-        </h1>
-        <p className="text-muted" style={{ marginBottom: "2.5rem", fontSize: "0.85rem" }}>
-          {done && !hasError
-            ? "Your rewritten resume is below."
-            : done && hasError
-            ? "One or more steps encountered an error."
-            : "Hang tight — the AI is working on your resume."}
-        </p>
-
-        {!done && (
-          <div className="nm-card" style={{ display: "flex", alignItems: "center", gap: "1rem", color: "var(--color-muted-fg)", fontSize: "0.875rem" }}>
-            <span className="spinner spinner-sm" />
-            Working…
-          </div>
-        )}
-
-        {done && atsScore !== null && (
-          <div className="nm-card" style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "1.25rem" }}>
-            <div>
-              <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--color-muted-fg)", marginBottom: "0.2rem" }}>ATS Score</p>
-              <p style={{ fontSize: "2.25rem", fontWeight: 800, color: atsScore >= 80 ? "#1a9e6e" : atsScore >= 60 ? "var(--color-accent)" : "var(--color-destructive)", lineHeight: 1 }}>
-                {atsScore}<span style={{ fontSize: "1rem", fontWeight: 400, color: "var(--color-muted-fg)" }}>/100</span>
-              </p>
-            </div>
-          </div>
-        )}
-
-        {done && rewrittenResume && (
-          <div className="nm-card">
-            <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--color-muted-fg)", marginBottom: "0.85rem" }}>
-              Rewritten Resume
+        {/* Top Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "1rem",
+            flexShrink: 0,
+          }}
+        >
+          <div>
+            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>
+              {done ? "Resume ready" : "Rewriting your resume"}
+            </h2>
+            <p className="text-muted text-xs" style={{ margin: "0.2rem 0 0" }}>
+              Generation ID: {params.id}
             </p>
-            <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.82rem", lineHeight: 1.7, color: "var(--color-foreground)", fontFamily: "inherit" }}>
-              {rewrittenResume}
-            </pre>
           </div>
+          <Link
+            href="/dashboard"
+            className="btn btn-ghost btn-sm"
+            style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+          >
+            ← Back to Dashboard
+          </Link>
+        </div>
+
+        {/* Generation in Progress */}
+        {!fatalError && !done && !connectionError && (
+          <GenerationProgressCard
+            stopping={stopping}
+            onStop={handleStopGeneration}
+          />
         )}
 
-        {done && (
-          <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <a href="/dashboard/history" className="btn btn-sm">View History</a>
-            <button className="btn btn-sm btn-ghost" onClick={() => router.push("/dashboard")}>
-              ← Back to Dashboard
+        {/* Fatal Error */}
+        {fatalError && (
+          <div
+            className="nm-card"
+            style={{
+              borderColor: "rgba(220, 38, 38, 0.4)",
+              padding: "1.5rem",
+              textAlign: "center",
+            }}
+          >
+            <h3 style={{ color: "var(--color-destructive)", margin: "0 0 0.5rem" }}>
+              Generation Error
+            </h3>
+            <p className="text-muted text-sm">{fatalError}</p>
+            <button
+              onClick={handleRetryGeneration}
+              disabled={retrying}
+              className="btn btn-primary btn-sm"
+              style={{ marginTop: "1rem" }}
+            >
+              {retrying ? "Retrying…" : "Retry"}
             </button>
           </div>
         )}
+
+        {/* Preview & Action Buttons */}
+        {rewrittenResume && (
+          <>
+            <ResumePreviewer
+              generationId={params.id}
+              generationTitle={generationTitle}
+              pdfBlobUrl={pdfBlobUrl}
+              onError={(err) => setDownloadError(err)}
+            />
+
+            <ResultsActionBar
+              generationId={params.id}
+              pdfFileName={pdfFileName}
+              jdOpen={jdOpen}
+              onToggleJd={toggleJd}
+              historyOpen={historyOpen}
+              onToggleHistory={toggleHistory}
+              atsScore={atsScore}
+              onError={(err) => setDownloadError(err || null)}
+            />
+          </>
+        )}
       </div>
-    </>
+    </div>
   );
 }

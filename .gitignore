@@ -80,3 +80,7 @@ docker-compose.override.yml
 .ruff_cache/
 tmp/
 temp/
+
+issues/
+plans/
+temp_/*

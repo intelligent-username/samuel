@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Test Opacity Keyframes in SVG</title>
+</head>
+<body style="background: #111; color: white;">
+  <svg width="400" height="200" viewBox="0 0 400 200">
+    <style>
+      .f { opacity: 0; }
+      .f0 { animation: a0 3s steps(1) infinite; }
+      .f1 { animation: a1 3s steps(1) infinite; }
+      .f2 { animation: a2 3s steps(1) infinite; }
+      @keyframes a0 { 0%, 33.3% { opacity: 1; } 33.4%, 100% { opacity: 0; } }
+      @keyframes a1 { 0%, 33.3% { opacity: 0; } 33.4%, 66.6% { opacity: 1; } 66.7%, 100% { opacity: 0; } }
+      @keyframes a2 { 0%, 66.6% { opacity: 0; } 66.7%, 100% { opacity: 1; } }
+    </style>
+    <rect width="400" height="200" fill="#222"/>
+    <g class="f f0">
+      <circle cx="100" cy="100" r="50" fill="gold"/>
+      <text x="100" y="105" fill="black" text-anchor="middle" font-weight="bold">FRAME 0</text>
+    </g>
+    <g class="f f1">
+      <circle cx="200" cy="100" r="50" fill="cyan"/>
+      <text x="200" y="105" fill="black" text-anchor="middle" font-weight="bold">FRAME 1</text>
+    </g>
+    <g class="f f2">
+      <circle cx="300" cy="100" r="50" fill="crimson"/>
+      <text x="300" y="105" fill="black" text-anchor="middle" font-weight="bold">FRAME 2</text>
+    </g>
+  </svg>
+</body>
+</html>

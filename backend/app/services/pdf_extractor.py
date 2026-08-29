@@ -2,11 +2,40 @@ import re
 
 import fitz  # PyMuPDF
 
+# Canonical header sets for section detection
+SKILLS_HEADERS = {
+    "skill", "skills",
+    "technical skills", "technical expertise",
+    "core competencies",
+    "key skills",
+}
+
+PROJECTS_HEADERS = {
+    "project", "projects",
+    "personal projects", "selected projects",
+    "side projects",
+    "open source", "open-source",
+}
+
 # Any uppercase/title-case line that could be the next section boundary
 _ANY_HEADER = re.compile(
-    r"^(?:experience|education|work|employment|certifications?|awards?|publications?|languages?|summary|objective|about|contact|references?)\s*$",
-    re.IGNORECASE | re.MULTILINE,
+    r"^(?:"
+    r"experience|work\s+experience|employment|work\s+history|"
+    r"education|certifications?|awards?|publications?|languages?|"
+    r"summary|objective|about|contact|references?|"
+    r"skills?|technical\s+skills|technical\s+expertise|core\s+competencies|key\s+skills|"
+    r"projects?|personal\s+projects|selected\s+projects|side\s+projects|open[-\s]?source"
+    r")\s*:?\s*$",
+    re.IGNORECASE,
 )
+
+
+def _normalize_header(line: str) -> str:
+    """Normalize a header line for comparison: strip whitespace, trailing colons, collapse inner whitespace, lower."""
+    s = line.strip()
+    s = s.rstrip(":").strip()  # handle "Technical Skills:" and "Skills :"
+    s = re.sub(r"\s+", " ", s)
+    return s.lower()
 
 
 def extract_text_from_pdf(content: bytes) -> str:
@@ -19,10 +48,21 @@ def extract_text_from_pdf(content: bytes) -> str:
     return "\n".join(text_parts).strip()
 
 
-def extract_sections(text: str) -> dict[str, str]:
+def extract_sections(text: str) -> dict[str, str | bool]:
     """Return {'skills': ..., 'projects': ...} pulled from resume text."""
-    skills_text = _extract_section(text, {"skill", "skills", "technical skills", "core competencies"})
-    projects_text = _extract_section(text, {"project", "projects", "personal projects", "side projects", "open source", "open-source"})
+    skills_text = _extract_section(text, SKILLS_HEADERS)
+    projects_text = _extract_section(text, PROJECTS_HEADERS)
+    
+    # Fallback: if both sections empty, use full text slice with warning
+    if not skills_text and not projects_text:
+        fallback = text.strip()[:4000]
+        return {
+            "skills": fallback, 
+            "projects": "", 
+            "_fallback": True, 
+            "_warning": "Could not detect Skills/Projects sections — using full resume text"
+        }
+    
     return {"skills": skills_text, "projects": projects_text}
 
 
@@ -34,7 +74,7 @@ def _extract_section(text: str, target_names: set[str]) -> str:
 
     for line in lines:
         stripped = line.strip()
-        normalized = stripped.lower().rstrip(":")
+        normalized = _normalize_header(stripped)
 
         if normalized in target_names:
             capturing = True

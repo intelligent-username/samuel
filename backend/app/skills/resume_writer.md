@@ -12,6 +12,8 @@ Rules:
 - Reorder projects so the most relevant ones appear first
 - Rewrite project bullet points to emphasize technologies and outcomes that match the job
 - If a skill from the JD isn't in the original skills AND not evidenced by a GitHub project, do NOT add it
+- Strictly keep the sections separated: put ONLY skills in the "skills" field and ONLY projects in the "projects" field
+- Do NOT include section headers like "## Skills" or "## Projects" inside the JSON values
 
 ## Input
 
@@ -33,7 +35,7 @@ Return JSON with exactly two keys:
 
 ```json
 {
-  "skills": "<rewritten skills section as plain text>",
-  "projects": "<rewritten projects section as plain text>"
+  "skills": "<rewritten skills content without ## Skills header>",
+  "projects": "<rewritten projects content without ## Projects header>"
 }
 ```

@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-from app.utils.llm import LLMClient
+from app.utils.llm import LLMClient, extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +38,11 @@ class ATSCheckerSkill:
         result = await llm.complete(prompt)
 
         try:
-            report = json.loads(result) if isinstance(result, str) else result
+            report = extract_json(result) if isinstance(result, str) else result
         except (json.JSONDecodeError, TypeError) as e:
             logger.warning("Failed to parse ATS checker response: %s", e)
+            report = {"score": 0, "issues": ["Failed to parse ATS report"], "warnings": [], "missing_keywords": jd_keywords}
+        if not isinstance(report, dict):
             report = {"score": 0, "issues": ["Failed to parse ATS report"], "warnings": [], "missing_keywords": jd_keywords}
 
         if debug_dir:

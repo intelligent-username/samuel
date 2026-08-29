@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     debug_retention_hours: int = 24
     secure_cookie: bool = False
     openrouter_api_key: str = ""
+    groq_api_key: str = ""
 
     @property
     def openrouter_key(self) -> str:

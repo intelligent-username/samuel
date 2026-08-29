@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-from app.utils.llm import LLMClient
+from app.utils.llm import LLMClient, extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +50,12 @@ class ProjectMatcherSkill:
         result = await llm.complete(prompt)
 
         try:
-            ranked = json.loads(result) if isinstance(result, str) else result
+            ranked = extract_json(result) if isinstance(result, str) else result
         except (json.JSONDecodeError, TypeError) as e:
             logger.warning("Failed to parse project matcher response: %s", e)
+            ranked = []
+        if not isinstance(ranked, list):
+            logger.warning("Project matcher response was not a list; discarding")
             ranked = []
 
         if debug_dir:

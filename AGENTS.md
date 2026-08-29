@@ -9,7 +9,7 @@
 ## CRITICAL RULES
 
 ### Do NOT modify UI unless explicitly asked
-The frontend features a strict **Neumorphic design system** styled with CSS variables and Tailwind. Do not touch or modify components, typography, layout, themes, spacing, or neumorphic box-shadow structures unless explicitly requested.
+The frontend features a strict **Neumorphic design system** styled with CSS variables and Tailwind. Do not touch or modify components, typography, layout, themes, spacing, or neumorphic box-shadow structures unless explicitly requested. Refer to docs/guides/style-guide.html for the style guide.
 
 ### Keep code minimalistic & clean
 Avoid unnecessary abstractions, defensive programming for impossible states, boilerplate, or over-engineering. Write minimal, direct code following existing patterns. Do not add comments unless the logic is genuinely non-obvious.
@@ -61,7 +61,8 @@ User (Browser)
 | `schemas/` | Pydantic models for validation and request/response serialization. |
 | `routers/` | Endpoint definitions grouped by feature (`auth.py`, `github.py`, `resume.py`, `generate.py`, `history.py`). |
 | `services/` | Integration services: `auth.py`, `github_graphql.py`, `pdf_extractor.py`, `encryption.py` (Fernet). |
-| `skills/` | The core agentic skill chain (orchestrator and individual sub-agents). |
+| `skills/` | Individual sub-agent skills (prompts & runners). |
+| `orchestrator.py` | Master skill-chain orchestrator executing the 4 sub-agent steps. |
 | `utils/llm.py` | Low-level OpenRouter client supporting chat completions and text embeddings. |
 
 ### Frontend (`frontend/src/`)
@@ -81,7 +82,7 @@ User (Browser)
 
 ## The Agentic Skill Chain
 
-The core pipeline is driven by the master `Orchestrator` (`backend/app/skills/orchestrator.py`), which executes four sub-agent steps sequentially. It streams progress events via Server-Sent Events (SSE) and writes prompt/response debug logs to a configured directory.
+The core pipeline is driven by the master `Orchestrator` (`backend/app/orchestrator.py`), which executes four sub-agent steps sequentially. It streams progress events via Server-Sent Events (SSE) and writes prompt/response debug logs to a configured directory.
 
 ```
 [Job Description Text]

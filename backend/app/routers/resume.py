@@ -1,8 +1,11 @@
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.generation import Generation
 
 from app.config import settings
 from app.database import get_db
@@ -11,7 +14,7 @@ from app.models.user import User
 from app.schemas import ResumeResponse
 from app.services.auth import get_session_user_id
 from app.services.encryption import encrypt
-from app.services.pdf_extractor import extract_text_from_pdf
+from app.services.pdf_extractor import extract_text_from_pdf, extract_sections
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,9 @@ async def upload_resume(request: Request, file: UploadFile, db: AsyncSession = D
 
     try:
         text = extract_text_from_pdf(content)
+        sections = extract_sections(text)  # for preview
+        # remove internal flags before returning
+        preview = {k: v for k, v in sections.items() if k in ("skills", "projects")}
     except Exception as e:
         logger.warning("PDF extraction failed: %s", e)
         raise HTTPException(status_code=400, detail="Failed to extract PDF text")
@@ -52,7 +58,7 @@ async def upload_resume(request: Request, file: UploadFile, db: AsyncSession = D
     await db.commit()
     await db.refresh(resume)
 
-    return ResumeResponse.model_validate(resume)
+    return ResumeResponse.model_validate(resume).model_copy(update={"sections": preview})
 
 
 @router.post("/key")
@@ -106,3 +112,21 @@ async def list_resumes(request: Request, db: AsyncSession = Depends(get_db)) -> 
     )
     resumes = result.scalars().all()
     return [ResumeResponse.model_validate(r) for r in resumes]
+
+
+@router.delete("/resumes/{resume_id}")
+async def delete_resume(resume_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """Delete an uploaded resume and its associated generations."""
+    user_id = get_session_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    result = await db.execute(select(Resume).where(Resume.id == resume_id, Resume.user_id == user_id))
+    resume = result.scalar_one_or_none()
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    await db.execute(delete(Generation).where(Generation.resume_id == resume.id, Generation.user_id == user_id))
+    await db.delete(resume)
+    await db.commit()
+    return {"message": "Resume deleted"}

@@ -66,6 +66,14 @@ export async function listResumes(): Promise<Resume[]> {
   return fetchApi<Resume[]>("/resume/resumes");
 }
 
+export async function deleteResume(id: string): Promise<void> {
+  await fetchApi(`/resume/resumes/${id}`, { method: "DELETE" });
+}
+
+export async function deleteGeneration(id: string): Promise<void> {
+  await fetchApi(`/history/${id}`, { method: "DELETE" });
+}
+
 export async function startGeneration(resumeId: string, jobDescription: string): Promise<Generation> {
   return fetchApi<Generation>("/generate/", {
     method: "POST",
@@ -81,10 +89,29 @@ export function getDownloadUrl(generationId: string): string {
   return `${API}/generate/${generationId}/download`;
 }
 
+export function getPreviewHtmlUrl(generationId: string): string {
+  return `${API}/generate/${generationId}/preview-html`;
+}
+
 export async function fetchGenerations(): Promise<Generation[]> {
   return fetchApi<Generation[]>("/history/");
 }
 
 export async function fetchGeneration(id: string): Promise<Generation> {
   return fetchApi<Generation>(`/history/${id}`);
+}
+
+export async function updateGeneration(id: string, title: string): Promise<Generation> {
+  return fetchApi<Generation>(`/history/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+}
+
+export async function stopGeneration(id: string): Promise<Generation> {
+  return fetchApi<Generation>(`/generate/${id}/stop`, { method: "POST" });
+}
+
+export async function retryGeneration(id: string): Promise<Generation> {
+  return fetchApi<Generation>(`/generate/${id}/retry`, { method: "POST" });
 }
