@@ -7,6 +7,7 @@ import Link from "next/link";
 import { fetchGenerations, fetchMe, logout } from "@/lib/api";
 import type { Generation } from "@/lib/types";
 import BorromeanLogo from "@/components/BorromeanLogo";
+import HistoryList from "@/components/HistoryList";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   pending:   { label: "Pending",   color: "var(--color-muted-fg)" },
@@ -131,64 +132,10 @@ export default function HistoryPage() {
           Your past resume generations and optimization logs.
         </p>
 
-        {generations.length === 0 ? (
-          <div className="nm-card" style={{ textAlign: "center", padding: "3rem", width: "100%", maxWidth: "720px", margin: "0 auto" }}>
-            <div style={{ marginBottom: "1rem" }}>
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-muted-fg)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto" }}>
-                <rect width="20" height="16" x="2" y="4" rx="2" />
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-              </svg>
-            </div>
-            <h3 style={{ marginBottom: "0.5rem" }}>No generations yet</h3>
-            <p className="text-muted" style={{ marginBottom: "1.5rem" }}>
-              Upload your resume, paste a job description, and click Generate to get started.
-            </p>
-            <button onClick={() => router.push("/dashboard")} className="btn btn-accent">
-              Start generating
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", maxWidth: "720px", margin: "0 auto" }}>
-            {generations.map((gen) => {
-              const meta = STATUS_META[gen.status] ?? STATUS_META.pending;
-              const createdAt = new Date(gen.created_at).toLocaleString();
-              const snippet = gen.job_description_text?.slice(0, 140).replace(/\n/g, " ");
-
-              return (
-                <div
-                  key={gen.id}
-                  className="nm-card"
-                  style={{ cursor: "pointer", transition: "border-color 0.18s ease" }}
-                  onClick={() => router.push(`/dashboard/results/${gen.id}`)}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--color-border)")}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontWeight: 500, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: "0.35rem" }}>
-                        {snippet || "No job description"}...
-                      </p>
-                      <span className="text-xs text-muted">{createdAt}</span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.4rem", flexShrink: 0 }}>
-                      <span className="chip" style={{ color: meta.color, background: "var(--color-card)" }}>
-                        {meta.label}
-                      </span>
-                      {gen.status === "completed" && gen.ats_report && typeof gen.ats_report.score === "number" && (
-                        <span className="chip" title={gen.ats_report.issues?.length ? `${gen.ats_report.issues.length} issues` : undefined}>
-                          ATS {gen.ats_report.score}/100
-                          {Array.isArray(gen.ats_report.issues) && gen.ats_report.issues.length > 0 && (
-                            <span style={{ marginLeft:"0.35rem", fontSize:"0.68rem", opacity:0.85 }}>· {gen.ats_report.issues.length} issues</span>
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <HistoryList
+          generations={generations}
+          onDeleted={(id) => setGenerations((prev) => prev.filter((g) => g.id !== id))}
+        />
       </div>
     </div>
   );

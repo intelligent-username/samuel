@@ -253,7 +253,7 @@ async def download_pdf(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=resume.pdf"},
+        headers={"Content-Disposition": "inline; filename=resume.pdf"},
     )
 
 
