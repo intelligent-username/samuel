@@ -60,8 +60,13 @@ class ResumeWriterSkill:
                 skills_text = str(parsed.get("skills", ""))
                 projects_text = str(parsed.get("projects", ""))
             else:
-                # Raw text fallback: try splitting by a markdown projects header
-                if re.search(r"(?i)\n*#+\s*projects\b", result):
+                # Raw text fallback: try regex extraction for "skills" and "projects" keys from raw JSON string
+                m_s = re.search(r'"skills"\s*:\s*"(.*?)(?=",\s*"projects"|"\s*\})', result, re.DOTALL)
+                m_p = re.search(r'"projects"\s*:\s*"(.*?)(?="\s*\}|\Z)', result, re.DOTALL)
+                if m_s and m_p:
+                    skills_text = m_s.group(1).replace(r'\"', '"').replace(r'\n', '\n')
+                    projects_text = m_p.group(1).replace(r'\"', '"').replace(r'\n', '\n')
+                elif re.search(r"(?i)\n*#+\s*projects\b", result):
                     split = re.split(r"(?i)\n*#+\s*projects\b[:\s]*", result, maxsplit=1)
                     skills_text = split[0]
                     projects_text = split[1] if len(split) > 1 else ""
@@ -69,11 +74,26 @@ class ResumeWriterSkill:
                     skills_text = result
                     projects_text = ""
 
+        # Recovery: if skills_text still contains unparsed JSON with "projects"
+        if '"projects"' in skills_text and ('"skills"' in skills_text or '```json' in skills_text):
+            m_s = re.search(r'"skills"\s*:\s*"(.*?)(?=",\s*"projects"|"\s*\})', skills_text, re.DOTALL)
+            m_p = re.search(r'"projects"\s*:\s*"(.*?)(?="\s*\}|\Z)', skills_text, re.DOTALL)
+            if m_s:
+                skills_text = m_s.group(1).replace(r'\"', '"').replace(r'\n', '\n')
+            if m_p:
+                projects_text = m_p.group(1).replace(r'\"', '"').replace(r'\n', '\n')
+
         # Safety check: if projects_text is empty or near-empty, but skills_text contains the projects section
         if (not projects_text.strip() or len(projects_text.strip()) < 15) and re.search(r"(?i)\n*#+\s*projects\b", skills_text):
             split = re.split(r"(?i)\n*#+\s*projects\b[:\s]*", skills_text, maxsplit=1)
             skills_text = split[0]
             projects_text = split[1] if len(split) > 1 else ""
+
+        # Clean up any leftover JSON wrapper syntax
+        skills_text = re.sub(r"^```(?:json)?\s*\{\s*", "", skills_text.strip())
+        skills_text = re.sub(r'^\s*"skills"\s*:\s*"', "", skills_text).rstrip('"').strip()
+        projects_text = re.sub(r'\s*\}\s*```\s*$', "", projects_text.strip())
+        projects_text = re.sub(r'^\s*"projects"\s*:\s*"', "", projects_text).rstrip('"').strip()
 
         # Strip any redundant headers from within the section bodies
         skills_text = re.sub(r"(?i)^\s*#+\s*skills\b[:\s]*\n*", "", skills_text).strip()

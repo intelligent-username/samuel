@@ -9,30 +9,45 @@ logger = logging.getLogger(__name__)
 
 
 def extract_json(text: str) -> dict | list | None:
-    """Best-effort extraction of JSON from LLM output (strips code fences and prose)."""
+    """Best-effort extraction of JSON from LLM output (strips code fences, prose, and handles unescaped newlines)."""
     text = text.strip()
     if text.startswith("```"):
         text = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", text)
         text = re.sub(r"\s*```\s*$", "", text)
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
+        return json.loads(text, strict=False)
+    except (json.JSONDecodeError, TypeError):
         pass
+
     # Try object extraction
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end > start:
+        sub = text[start : end + 1]
         try:
-            return json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
+            return json.loads(sub, strict=False)
+        except (json.JSONDecodeError, TypeError):
             pass
+        # Try repairing raw unescaped newlines inside string literals
+        try:
+            repaired = re.sub(
+                r'(".*?")',
+                lambda m: m.group(0).replace("\n", "\\n").replace("\r", "\\r"),
+                sub,
+                flags=re.DOTALL,
+            )
+            return json.loads(repaired, strict=False)
+        except Exception:
+            pass
+
     # Try array extraction (for project_matcher)
     start = text.find("[")
     end = text.rfind("]")
     if start != -1 and end > start:
+        sub = text[start : end + 1]
         try:
-            return json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
+            return json.loads(sub, strict=False)
+        except (json.JSONDecodeError, TypeError):
             return None
     return None
 

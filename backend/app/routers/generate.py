@@ -1,7 +1,9 @@
 import asyncio
 import html as html_module
+import json
 import logging
 import re
+import urllib.parse
 import uuid
 from textwrap import dedent
 
@@ -121,15 +123,15 @@ async def stream_generation(
             # Replay step-done for all four steps so frontend marks them done instantly.
             # Use synthetic summaries that match orchestrator's format; frontend only uses step key.
             for step in ["jd_parser", "project_matcher", "resume_writer", "ats_checker"]:
-                yield {"event": "step-done", "data": {"step": step, "summary": "Cached"}}
+                yield {"event": "step-done", "data": json.dumps({"step": step, "summary": "Cached"})}
             # Replay the actual output + done from DB
             yield {"event": "output", "data": generation.rewritten_resume_text}
-            yield {"event": "done", "data": {
+            yield {"event": "done", "data": json.dumps({
                 "generation_id": str(generation.id),
                 "ats_score": ats_score,
                 "rewritten_resume": generation.rewritten_resume_text,  # fallback for Issue #8
                 "pdf_url": f"/generate/{generation.id}/download",
-            }}
+            })}
 
         # Explicit CORS headers for SSE (browsers block EventSource without them even if middleware mis-handles streaming)
         cors_headers = {
@@ -166,6 +168,8 @@ async def stream_generation(
             active_generation_tasks[generation_id] = current_task
         try:
             async for event in orchestrator.run():
+                if isinstance(event.get("data"), (dict, list)):
+                    event["data"] = json.dumps(event["data"])
                 yield event
         except asyncio.CancelledError:
             logger.info("generation %s was stopped/cancelled by user", generation_id)
@@ -178,7 +182,7 @@ async def stream_generation(
                         await cancel_db.commit()
             except Exception:
                 pass
-            yield {"event": "error", "data": {"message": "Generation stopped by user"}}
+            yield {"event": "error", "data": json.dumps({"message": "Generation stopped by user"})}
             raise
         except Exception as e:
             logger.exception("generation %s failed", generation_id)
@@ -202,7 +206,7 @@ async def stream_generation(
             except Exception:
                 logger.exception("failed to persist failed status for %s", generation_id)
             # Never leak raw JD or API key; str(e) is safe (exception message only)
-            yield {"event": "error", "data": {"message": str(e) or "Generation failed"}}
+            yield {"event": "error", "data": json.dumps({"message": str(e) or "Generation failed"})}
         finally:
             active_generation_tasks.pop(generation_id, None)
             await llm.close()
@@ -339,21 +343,137 @@ async def download_pdf(
         raise HTTPException(status_code=500, detail=f"PDF rendering failed: {e}")
 
     origin = request.headers.get("origin") or "http://localhost:3000"
+    filename = _sanitize_pdf_filename(generation.title)
+    encoded_filename = urllib.parse.quote(filename)
+    is_download = request.query_params.get("download", "").lower() in ("true", "1")
+    disposition = "attachment" if is_download else "inline"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": "inline; filename=resume.pdf",
+            "Content-Disposition": f'{disposition}; filename="{filename}"; filename*=UTF-8\'\'{encoded_filename}',
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",
         },
     )
 
 
+@router.get("/{generation_id}/preview-html")
+async def preview_html(
+    generation_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Return clean styled HTML of the rewritten resume for the in-app previewer."""
+    user_id = get_session_user_id(request)
+    if user_id:
+        result = await db.execute(
+            select(Generation).where(Generation.id == generation_id, Generation.user_id == user_id)
+        )
+    else:
+        result = await db.execute(
+            select(Generation).where(Generation.id == generation_id)
+        )
+    generation = result.scalar_one_or_none()
+    if not generation:
+        raise HTTPException(status_code=404, detail="Generation not found")
+
+    if not generation.rewritten_resume_text:
+        raise HTTPException(status_code=400, detail="No rewritten resume available")
+
+    resume_html = _text_to_html(generation.rewritten_resume_text)
+    html_content = dedent(f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            * {{ box-sizing: border-box; }}
+            html, body {{
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+              color: #111827;
+            }}
+            body {{
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+              font-size: 10.5pt;
+              line-height: 1.55;
+              padding: 2.25rem 2.5rem;
+              color: #1a1a1a;
+            }}
+            h1 {{ font-size: 18pt; font-weight: 800; margin: 0 0 6pt; color: #111827; letter-spacing: -0.02em; }}
+            h2 {{
+              font-size: 12pt;
+              font-weight: 700;
+              border-bottom: 1.5px solid #111827;
+              padding-bottom: 3pt;
+              margin-top: 16pt;
+              margin-bottom: 7pt;
+              color: #111827;
+              letter-spacing: 0.02em;
+              text-transform: uppercase;
+            }}
+            h3 {{ font-size: 10.5pt; font-weight: 700; margin: 9pt 0 2pt; color: #1f2937; }}
+            ul {{ margin: 4pt 0 6pt; padding-left: 18pt; }}
+            li {{ margin-bottom: 2.5pt; color: #2d3748; }}
+            p {{ margin: 3pt 0; color: #2d3748; }}
+            .section {{ margin-bottom: 12pt; }}
+          </style>
+        </head>
+        <body>
+          {resume_html}
+        </body>
+        </html>
+    """)
+    origin = request.headers.get("origin") or "http://localhost:3000"
+    return Response(
+        content=html_content,
+        media_type="text/html",
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+        },
+    )
+
+
+def _sanitize_pdf_filename(title: str | None) -> str:
+    """Format PDF download filename from generation title or fallback to generated_resume.pdf."""
+    if not title or not title.strip():
+        return "generated_resume.pdf"
+    safe = re.sub(r'[\/\\:*?"<>|\x00-\x1f]', "", title.strip())
+    safe = safe.strip(". ")
+    if not safe:
+        return "generated_resume.pdf"
+    if not safe.lower().endswith(".pdf"):
+        safe += ".pdf"
+    return safe
+
+
 def _text_to_html(text: str) -> str:
     """Convert plain resume text to basic HTML for PDF rendering."""
+    # If the text contains raw JSON (e.g. from LLM returning JSON with code fences)
+    cleaned_text = text.strip()
+    if '"skills"' in cleaned_text and '"projects"' in cleaned_text:
+        from app.utils.llm import extract_json
+        parsed = extract_json(cleaned_text)
+        s_val = None
+        p_val = None
+        if isinstance(parsed, dict):
+            s_val = parsed.get("skills")
+            p_val = parsed.get("projects")
+        if not s_val or not p_val:
+            m_s = re.search(r'"skills"\s*:\s*"(.*?)(?=",\s*"projects"|"\s*\})', cleaned_text, re.DOTALL)
+            m_p = re.search(r'"projects"\s*:\s*"(.*?)(?="\s*\}|\Z)', cleaned_text, re.DOTALL)
+            if m_s:
+                s_val = m_s.group(1).replace(r'\"', '"').replace(r'\n', '\n')
+            if m_p:
+                p_val = m_p.group(1).replace(r'\"', '"').replace(r'\n', '\n')
+        if s_val is not None and p_val is not None:
+            cleaned_text = f"## Skills\n\n{str(s_val).strip()}\n\n## Projects\n\n{str(p_val).strip()}"
+
     # Clean up any trailing empty "## Projects" header at the end of the text
-    cleaned_text = re.sub(r"(?i)\n*##\s*projects\s*$", "", text.strip())
+    cleaned_text = re.sub(r"(?i)\n*##\s*projects\s*$", "", cleaned_text.strip())
     # If "## Projects" is missing but project entries (### ) exist, inject ## Projects before the first entry
     if not re.search(r"(?i)##\s*projects", cleaned_text):
         match = re.search(r"\n(?=###\s+)", cleaned_text)
@@ -389,11 +509,12 @@ def _text_to_html(text: str) -> str:
                 parts.append("</ul>")
                 in_ul = False
             parts.append(f"<h3>{html_module.escape(stripped[4:])}</h3>")
-        elif stripped.startswith(("- ", "• ", "* ")):
+        elif stripped.startswith(("- ", "• ", "* ", "•", "-")):
             if not in_ul:
                 parts.append("<ul>")
                 in_ul = True
-            parts.append(f"<li>{html_module.escape(stripped[2:])}</li>")
+            content = stripped.lstrip("•-* ").strip()
+            parts.append(f"<li>{html_module.escape(content)}</li>")
         else:
             if in_ul:
                 parts.append("</ul>")
