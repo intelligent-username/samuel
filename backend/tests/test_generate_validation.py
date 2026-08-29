@@ -5,15 +5,15 @@ from app.main import app
 client = TestClient(app)
 
 def test_jd_too_long_returns_422(client, auth_headers, resume_id):
-    """Test that job description > 8000 chars returns 422"""
-    jd = "a" * 8001
+    """Test that job description > 24000 chars returns 422"""
+    jd = "a" * 24001
     res = client.post("/generate/", json={"resume_id": str(resume_id), "job_description": jd}, headers=auth_headers)
     assert res.status_code == 422
-    assert "too long" in res.text and "8000" in res.text
+    assert "too long" in res.text and "24000" in res.text
 
-def test_jd_exact_8000_succeeds(client, auth_headers, resume_id):
-    """Test that job description exactly 8000 chars succeeds"""
-    jd = "a" * 8000  # ensure >=10
+def test_jd_exact_24000_succeeds(client, auth_headers, resume_id):
+    """Test that job description exactly 24000 chars succeeds"""
+    jd = "a" * 24000  # ensure >=10
     res = client.post("/generate/", json={"resume_id": str(resume_id), "job_description": jd}, headers=auth_headers)
     assert res.status_code in (200, 201)  # creates Generation
 

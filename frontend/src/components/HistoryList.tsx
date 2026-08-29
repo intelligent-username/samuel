@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { deleteGeneration, updateGeneration } from "@/lib/api";
+import { deleteGeneration, updateGeneration, stopGeneration, retryGeneration } from "@/lib/api";
 import type { Generation } from "@/lib/types";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
@@ -33,8 +33,42 @@ export default function HistoryList({
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [isMultiDeleting, setIsMultiDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Status tag action states (stop/retry)
+  const [hoveredTagGenId, setHoveredTagGenId] = useState<string | null>(null);
+  const [actionGenId, setActionGenId] = useState<string | null>(null);
+
+  const handleStop = async (gen: Generation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActionGenId(gen.id);
+    try {
+      const updated = await stopGeneration(gen.id);
+      if (onUpdated) onUpdated(gen.id, updated);
+    } catch (err) {
+      console.error("Failed to stop generation:", err);
+    } finally {
+      setActionGenId(null);
+    }
+  };
+
+  const handleRetry = async (gen: Generation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActionGenId(gen.id);
+    try {
+      const updated = await retryGeneration(gen.id);
+      if (onUpdated) onUpdated(gen.id, updated);
+      if (onSelect) {
+        onSelect(gen.id);
+      } else {
+        router.push(`/dashboard/results/${gen.id}`);
+      }
+    } catch (err) {
+      console.error("Failed to retry generation:", err);
+    } finally {
+      setActionGenId(null);
+    }
+  };
 
   // Title editing state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -456,9 +490,89 @@ export default function HistoryList({
 
                   <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexShrink: 0 }}>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.35rem" }}>
-                      <span className="chip" style={{ color: meta.color, background: "var(--color-card)", fontSize: "0.7rem", padding: "0.1rem 0.45rem" }}>
-                        {meta.label}
-                      </span>
+                      {gen.status === "running" ? (
+                        <button
+                          type="button"
+                          onClick={(e) => handleStop(gen, e)}
+                          onMouseEnter={() => setHoveredTagGenId(gen.id)}
+                          onMouseLeave={() => setHoveredTagGenId(null)}
+                          disabled={actionGenId === gen.id}
+                          title={hoveredTagGenId === gen.id ? "Click to stop generation" : "Running (click to stop)"}
+                          className="chip"
+                          style={{
+                            cursor: "pointer",
+                            fontSize: "0.7rem",
+                            padding: "0.15rem 0.55rem",
+                            transition: "all 0.15s ease",
+                            fontWeight: 600,
+                            background: hoveredTagGenId === gen.id ? "rgba(220, 38, 38, 0.14)" : "var(--color-card)",
+                            color: hoveredTagGenId === gen.id ? "var(--color-destructive)" : "var(--color-primary)",
+                            borderColor: hoveredTagGenId === gen.id ? "var(--color-destructive)" : "var(--color-primary)",
+                          }}
+                        >
+                          {actionGenId === gen.id ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                              <span className="spinner spinner-sm" style={{ width: "9px", height: "9px", borderWidth: "1.5px" }} />
+                              Stopping…
+                            </span>
+                          ) : hoveredTagGenId === gen.id ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                              <span style={{ fontSize: "0.6rem" }}>■</span> Stop
+                            </span>
+                          ) : (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                              <span className="spinner spinner-sm" style={{ width: "8px", height: "8px", borderWidth: "1.5px" }} />
+                              Running
+                            </span>
+                          )}
+                        </button>
+                      ) : gen.status === "failed" ? (
+                        <button
+                          type="button"
+                          onClick={(e) => handleRetry(gen, e)}
+                          onMouseEnter={() => setHoveredTagGenId(gen.id)}
+                          onMouseLeave={() => setHoveredTagGenId(null)}
+                          disabled={actionGenId === gen.id}
+                          title={hoveredTagGenId === gen.id ? "Click to retry generation" : "Failed (click to retry)"}
+                          className="chip"
+                          style={{
+                            cursor: "pointer",
+                            fontSize: "0.7rem",
+                            padding: "0.15rem 0.55rem",
+                            transition: "all 0.15s ease",
+                            fontWeight: 600,
+                            background: hoveredTagGenId === gen.id ? "rgba(0, 102, 153, 0.16)" : "var(--color-card)",
+                            color: hoveredTagGenId === gen.id ? "var(--color-primary)" : "var(--color-destructive)",
+                            borderColor: hoveredTagGenId === gen.id ? "var(--color-primary)" : "rgba(220, 38, 38, 0.4)",
+                          }}
+                        >
+                          {actionGenId === gen.id ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                              <span className="spinner spinner-sm" style={{ width: "9px", height: "9px", borderWidth: "1.5px" }} />
+                              Retrying…
+                            </span>
+                          ) : hoveredTagGenId === gen.id ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                              ↻ Retry
+                            </span>
+                          ) : (
+                            "Failed"
+                          )}
+                        </button>
+                      ) : (
+                        <span
+                          className="chip"
+                          style={{
+                            color: meta.color,
+                            background: "var(--color-card)",
+                            fontSize: "0.7rem",
+                            padding: "0.15rem 0.55rem",
+                            borderColor: meta.color === "var(--color-muted-fg)" ? "var(--color-border)" : meta.color,
+                          }}
+                        >
+                          {meta.label}
+                        </span>
+                      )}
                       {gen.status === "completed" && gen.ats_report && typeof gen.ats_report.score === "number" && (
                         <span className="chip" style={{ fontSize: "0.7rem", padding: "0.1rem 0.45rem" }} title={gen.ats_report.issues?.length ? `${gen.ats_report.issues.length} issues` : undefined}>
                           ATS {gen.ats_report.score}/100

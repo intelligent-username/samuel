@@ -295,7 +295,7 @@ export default function DashboardPage() {
   }, [jobDesc]);
 
   // Job description validation helpers
-  const JD_MAX = 8000;
+  const JD_MAX = 24000;
   const jdLen = jobDesc.length;
   const jdTrimLen = jobDesc.trim().length;
   const wordCount = jobDesc.trim().split(/\s+/).filter(Boolean).length;
@@ -498,7 +498,7 @@ export default function DashboardPage() {
     if (!selectedResumeId) return flash("Please upload or select a resume", "error");
     if (!jobDesc.trim()) return flash("Please paste a job description", "error");
     if (jobDesc.trim().length < 10) return flash("Job description too short (min 10 characters)", "error");
-    if (jobDesc.length > JD_MAX) return flash("Job description too long (max 8000 characters)", "error");
+    if (jobDesc.length > JD_MAX) return flash("Job description too long (max 24000 characters)", "error");
     if (!hasKey && !envConfigured) return flash("Please save your OpenRouter API key first", "error");
     setGenerating(true);
     try {
@@ -520,7 +520,7 @@ export default function DashboardPage() {
         }
       } catch {}
       // Exact substring match for acceptance strings
-      if (friendly.includes("too long")) friendly = "Job description too long (max 8000 characters)";
+      if (friendly.includes("too long")) friendly = "Job description too long (max 24000 characters)";
       if (friendly.includes("Please paste")) friendly = "Please paste a job description";
       flash(friendly, "error");
       setGenerating(false);
@@ -698,45 +698,52 @@ export default function DashboardPage() {
 
         <div style={{ width: "100%" }} className="dashboard-grid">
           {/* Job Description */}
-          <Section title="Job Description">
-            <textarea
-              id="job-description" rows={12} placeholder="Paste the job description here..."
-              value={jobDesc} onChange={(e) => setJobDesc(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault();
-                  handleGenerate();
-                }
-              }}
-              maxLength={8000}
-              className="textarea" style={{ minHeight: "320px", fontSize: "0.85rem", lineHeight: "1.6" }}
-            />
-            <p className="text-xs text-muted" style={{
-              marginTop: "0.5rem",
-              fontFamily: "monospace",
-              color: overLimit ? "var(--color-destructive)" : nearLimit ? "var(--color-destructive)" : "var(--color-muted-fg)",
-              fontWeight: nearLimit ? 600 : 400,
-            }}>
-              {wordCount} words · {jdLen.toLocaleString()} / {JD_MAX.toLocaleString()} chars
-              {nearLimit && !overLimit && ` · ${charsRemaining} remaining`}
-              {overLimit && ` · over by ${Math.abs(charsRemaining)}`}
-            </p>
-            {overLimit && (
-              <p className="text-xs" style={{ color: "var(--color-destructive)", marginTop: "0.25rem" }}>
-                Job description too long (max 8000 characters)
+          <Section
+            title="Job Description"
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+          >
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: "320px" }}>
+              <textarea
+                id="job-description" rows={12} placeholder="Paste the job description here..."
+                value={jobDesc} onChange={(e) => setJobDesc(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    handleGenerate();
+                  }
+                }}
+                maxLength={24000}
+                className="textarea"
+                style={{ flex: 1, minHeight: "260px", fontSize: "0.85rem", lineHeight: "1.6", resize: "none" }}
+              />
+              <p className="text-xs text-muted" style={{
+                marginTop: "0.5rem",
+                fontFamily: "monospace",
+                color: overLimit ? "var(--color-destructive)" : nearLimit ? "var(--color-destructive)" : "var(--color-muted-fg)",
+                fontWeight: nearLimit ? 600 : 400,
+              }}>
+                {wordCount} words · {jdLen.toLocaleString()} / {JD_MAX.toLocaleString()} chars
+                {nearLimit && !overLimit && ` · ${charsRemaining} remaining`}
+                {overLimit && ` · over by ${Math.abs(charsRemaining)}`}
               </p>
-            )}
-            {jdTrimLen > 0 && jdTrimLen < 10 && (
-              <p className="text-xs" style={{ color: "var(--color-destructive)", marginTop: "0.25rem" }}>
-                Job description too short (min 10 characters)
-              </p>
-            )}
+              {overLimit && (
+                <p className="text-xs" style={{ color: "var(--color-destructive)", marginTop: "0.25rem" }}>
+                  Job description too long (max 24000 characters)
+                </p>
+              )}
+              {jdTrimLen > 0 && jdTrimLen < 10 && (
+                <p className="text-xs" style={{ color: "var(--color-destructive)", marginTop: "0.25rem" }}>
+                  Job description too short (min 10 characters)
+                </p>
+              )}
+            </div>
           </Section>
 
           {/* Resume + Action */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", height: "100%" }}>
             <Section
               title="Resume (PDF)"
+              style={{ flex: 1, display: "flex", flexDirection: "column" }}
               titleRight={
                 resumes.length > 0 ? (
                   <div ref={resumeMenuRef} style={{ position: "relative", maxWidth: "260px", marginLeft: "0.75rem", flexShrink: 0 }}>
@@ -913,16 +920,22 @@ export default function DashboardPage() {
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
                 style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: "180px",
                   border: `2px dashed ${isDragging ? "var(--color-primary)" : "var(--color-border)"}`,
                   borderRadius: "10px",
-                  padding: "1.25rem 1rem",
+                  padding: "1.5rem 1rem",
                   textAlign: "center",
                   background: isDragging ? "var(--color-muted)" : "transparent",
                   transition: "border-color 0.15s ease, background 0.15s ease",
                   cursor: "default",
                 }}
               >
-                <p style={{ fontSize: "0.8rem", color: "var(--color-muted-fg)", marginBottom: "0.75rem" }}>
+                <p style={{ fontSize: "0.85rem", color: "var(--color-muted-fg)", marginBottom: "1rem" }}>
                   {isDragging ? "Drop your PDF here" : "Drag & drop a PDF, or click to browse"}
                 </p>
                 <div style={{ display: "flex", gap: "1rem", alignItems: "center", justifyContent: "center" }}>
@@ -934,7 +947,7 @@ export default function DashboardPage() {
               </div>
             </Section>
 
-            <div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", flexShrink: 0 }}>
               <button
                 id="generate-btn" onClick={handleGenerate} disabled={generating || overLimit || jdTrimLen < 10}
                 className="btn btn-accent btn-lg"
@@ -942,18 +955,18 @@ export default function DashboardPage() {
                 onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.98) translateY(1px)"; }}
                 onMouseUp={(e) => { e.currentTarget.style.transform = "none"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; }}
-                title={overLimit ? "Job description too long (max 8000 characters)" : undefined}
+                title={overLimit ? "Job description too long (max 24000 characters)" : undefined}
               >
                 {generating && <span className="spinner spinner-sm" />}
                 {generating ? "Starting generation..." : "Generate Rewritten Resume"}
               </button>
-            </div>
 
-            {msg && (
-              <div style={{ padding: "0.75rem 1rem", borderRadius: "8px", background: "var(--color-card)", border: "1px solid var(--color-border)", color: msgColor, fontSize: "0.875rem", fontWeight: 500 }}>
-                {msg.text}
-              </div>
-            )}
+              {msg && (
+                <div style={{ padding: "0.75rem 1rem", borderRadius: "8px", background: "var(--color-card)", border: "1px solid var(--color-border)", color: msgColor, fontSize: "0.875rem", fontWeight: 500 }}>
+                  {msg.text}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

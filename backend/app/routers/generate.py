@@ -1,6 +1,8 @@
+import asyncio
 import html as html_module
-import uuid
 import logging
+import re
+import uuid
 from textwrap import dedent
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -18,12 +20,15 @@ from app.models.user import User
 from app.schemas import GenerateRequest, GenerationResponse
 from app.services.auth import get_session_user_id
 from app.services.encryption import decrypt
-from app.skills.orchestrator import Orchestrator
+from app.orchestrator import Orchestrator
 from app.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/generate", tags=["generate"])
+
+# Track running generation tasks so they can be cancelled/stopped on demand
+active_generation_tasks: dict[uuid.UUID, asyncio.Task] = {}
 
 
 @router.post("/")
@@ -62,15 +67,15 @@ async def start_generation(
     if not user.openrouter_api_key and not env_key:
         raise HTTPException(status_code=400, detail="OpenRouter API key not set. Save it first via POST /resume/key")
 
-    # Defense in depth — even if schema is bypassed, enforce 8000
+    # Defense in depth — even if schema is bypassed, enforce 24000
     jd_text = body.job_description.strip()
     if not jd_text:
         raise HTTPException(status_code=422, detail="Please paste a job description")
-    if len(jd_text) > 8000:
-        raise HTTPException(status_code=422, detail="Job description too long (max 8000 characters)")
+    if len(jd_text) > 24000:
+        raise HTTPException(status_code=422, detail="Job description too long (max 24000 characters)")
     # Also handle raw body before strip (if validator not returning stripped)
-    if len(body.job_description) > 8000:
-        raise HTTPException(status_code=422, detail="Job description too long (max 8000 characters)")
+    if len(body.job_description) > 24000:
+        raise HTTPException(status_code=422, detail="Job description too long (max 24000 characters)")
 
     generation = Generation(
         user_id=user_id,
@@ -156,9 +161,25 @@ async def stream_generation(
     orchestrator = Orchestrator(generation_id, llm, db)
 
     async def event_generator():
+        current_task = asyncio.current_task()
+        if current_task:
+            active_generation_tasks[generation_id] = current_task
         try:
             async for event in orchestrator.run():
                 yield event
+        except asyncio.CancelledError:
+            logger.info("generation %s was stopped/cancelled by user", generation_id)
+            try:
+                async with async_session_factory() as cancel_db:
+                    res = await cancel_db.execute(select(Generation).where(Generation.id == generation_id))
+                    gen = res.scalar_one_or_none()
+                    if gen and gen.status != "completed":
+                        gen.status = "failed"
+                        await cancel_db.commit()
+            except Exception:
+                pass
+            yield {"event": "error", "data": {"message": "Generation stopped by user"}}
+            raise
         except Exception as e:
             logger.exception("generation %s failed", generation_id)
             # Session may be tainted -> rollback first, then use fresh session to persist failed
@@ -183,6 +204,7 @@ async def stream_generation(
             # Never leak raw JD or API key; str(e) is safe (exception message only)
             yield {"event": "error", "data": {"message": str(e) or "Generation failed"}}
         finally:
+            active_generation_tasks.pop(generation_id, None)
             await llm.close()
 
     live_cors_headers = {
@@ -193,6 +215,69 @@ async def stream_generation(
     return EventSourceResponse(event_generator(), headers=live_cors_headers)
 
 
+@router.post("/{generation_id}/stop")
+async def stop_generation(
+    generation_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> GenerationResponse:
+    """Stop a running generation, cancel LLM requests, and mark as failed."""
+    user_id = get_session_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    result = await db.execute(
+        select(Generation).where(Generation.id == generation_id, Generation.user_id == user_id)
+    )
+    generation = result.scalar_one_or_none()
+    if not generation:
+        raise HTTPException(status_code=404, detail="Generation not found")
+
+    # Cancel active asyncio task if running
+    task = active_generation_tasks.pop(generation_id, None)
+    if task and not task.done():
+        task.cancel()
+
+    generation.status = "failed"
+    await db.commit()
+    await db.refresh(generation)
+
+    return GenerationResponse.model_validate(generation)
+
+
+@router.post("/{generation_id}/retry")
+async def retry_generation(
+    generation_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> GenerationResponse:
+    """Reset a failed generation back to pending so it can be re-run."""
+    user_id = get_session_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    result = await db.execute(
+        select(Generation).where(Generation.id == generation_id, Generation.user_id == user_id)
+    )
+    generation = result.scalar_one_or_none()
+    if not generation:
+        raise HTTPException(status_code=404, detail="Generation not found")
+
+    # Cancel any previous task if lingering
+    task = active_generation_tasks.pop(generation_id, None)
+    if task and not task.done():
+        task.cancel()
+
+    generation.status = "pending"
+    generation.rewritten_resume_text = None
+    generation.ats_report = None
+    generation.completed_at = None
+    await db.commit()
+    await db.refresh(generation)
+
+    return GenerationResponse.model_validate(generation)
+
+
 @router.get("/{generation_id}/download")
 async def download_pdf(
     generation_id: uuid.UUID,
@@ -201,12 +286,15 @@ async def download_pdf(
 ) -> Response:
     """Download the rewritten resume as a PDF document."""
     user_id = get_session_user_id(request)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    result = await db.execute(
-        select(Generation).where(Generation.id == generation_id, Generation.user_id == user_id)
-    )
+    if user_id:
+        result = await db.execute(
+            select(Generation).where(Generation.id == generation_id, Generation.user_id == user_id)
+        )
+    else:
+        # Fallback for iframe preview subrequests where browsers block cross-port cookies
+        result = await db.execute(
+            select(Generation).where(Generation.id == generation_id)
+        )
     generation = result.scalar_one_or_none()
     if not generation:
         raise HTTPException(status_code=404, detail="Generation not found")
@@ -250,16 +338,30 @@ async def download_pdf(
         logger.exception("PDF rendering failed for %s: %s", generation_id, e)
         raise HTTPException(status_code=500, detail=f"PDF rendering failed: {e}")
 
+    origin = request.headers.get("origin") or "http://localhost:3000"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": "inline; filename=resume.pdf"},
+        headers={
+            "Content-Disposition": "inline; filename=resume.pdf",
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+        },
     )
 
 
 def _text_to_html(text: str) -> str:
     """Convert plain resume text to basic HTML for PDF rendering."""
-    lines = text.split("\n")
+    # Clean up any trailing empty "## Projects" header at the end of the text
+    cleaned_text = re.sub(r"(?i)\n*##\s*projects\s*$", "", text.strip())
+    # If "## Projects" is missing but project entries (### ) exist, inject ## Projects before the first entry
+    if not re.search(r"(?i)##\s*projects", cleaned_text):
+        match = re.search(r"\n(?=###\s+)", cleaned_text)
+        if match:
+            idx = match.start()
+            cleaned_text = cleaned_text[:idx] + "\n\n## Projects\n" + cleaned_text[idx:]
+
+    lines = cleaned_text.split("\n")
     parts = []
     in_ul = False
 

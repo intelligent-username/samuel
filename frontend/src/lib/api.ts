@@ -103,3 +103,11 @@ export async function updateGeneration(id: string, title: string): Promise<Gener
     body: JSON.stringify({ title }),
   });
 }
+
+export async function stopGeneration(id: string): Promise<Generation> {
+  return fetchApi<Generation>(`/generate/${id}/stop`, { method: "POST" });
+}
+
+export async function retryGeneration(id: string): Promise<Generation> {
+  return fetchApi<Generation>(`/generate/${id}/retry`, { method: "POST" });
+}

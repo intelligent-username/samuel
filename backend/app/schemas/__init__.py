@@ -50,7 +50,7 @@ class ResumeResponse(BaseModel):
 class GenerateRequest(BaseModel):
     """Request body to start a new resume generation."""
     resume_id: UUID
-    job_description: str = Field(..., min_length=10, max_length=8000, description="Job description 10-8000 chars")
+    job_description: str = Field(..., min_length=10, max_length=24000, description="Job description 10-24000 chars")
 
     @field_validator("job_description")
     @classmethod
@@ -60,8 +60,8 @@ class GenerateRequest(BaseModel):
             raise ValueError("Please paste a job description")
         if len(stripped) < 10:
             raise ValueError("Job description too short (min 10 characters)")
-        if len(v) > 8000 or len(stripped) > 8000:
-            raise ValueError("Job description too long (max 8000 characters)")
+        if len(v) > 24000 or len(stripped) > 24000:
+            raise ValueError("Job description too long (max 24000 characters)")
         return stripped
 
 
@@ -93,3 +93,11 @@ class JDRequirements(BaseModel):
     keywords: list[str]
 
     model_config = {"extra": "forbid"}
+
+
+class RewrittenResumeSections(BaseModel):
+    """Structured rewritten sections returned by ResumeWriterSkill."""
+    skills: str = Field(default="", description="Rewritten skills section")
+    projects: str = Field(default="", description="Rewritten projects section")
+
+    model_config = {"extra": "ignore"}

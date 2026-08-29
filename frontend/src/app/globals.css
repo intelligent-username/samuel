@@ -274,12 +274,13 @@ a:hover { color: var(--color-primary); filter: brightness(1.2); }
   display: grid;
   grid-template-columns: 1fr;
   gap: 2rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 @media (min-width: 768px) {
   .dashboard-grid {
     grid-template-columns: 1fr 1fr;
+    align-items: stretch;
   }
 }
 
