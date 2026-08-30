@@ -48,6 +48,93 @@ def extract_text_from_pdf(content: bytes) -> str:
     return "\n".join(text_parts).strip()
 
 
+def extract_layout_from_pdf(content: bytes) -> dict:
+    """Extract text along with visual metadata (spans with bbox, size, font, color, page dimensions)."""
+    doc = fitz.open(stream=content, filetype="pdf")
+    pages_layout = []
+    for page_num, page in enumerate(doc):
+        rect = page.rect
+        page_dict = {
+            "page": page_num,
+            "width": rect.width,
+            "height": rect.height,
+            "spans": [],
+        }
+        text_dict = page.get_text("dict")
+        for block in text_dict.get("blocks", []):
+            if block.get("type") == 0:  # text block
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        page_dict["spans"].append({
+                            "text": span.get("text", ""),
+                            "bbox": span.get("bbox"),  # (x0, y0, x1, y1)
+                            "size": span.get("size", 10),
+                            "font": span.get("font", "helv"),
+                            "color": span.get("color", 0),
+                            "flags": span.get("flags", 0),
+                        })
+        pages_layout.append(page_dict)
+    doc.close()
+    return {"pages": pages_layout}
+
+
+def rewrite_pdf_layout(
+    original_pdf_bytes: bytes,
+    rewritten_text: str,
+) -> bytes:
+    """Naive spatial writer: redacts target sections on original PDF and writes rewritten text in place."""
+    doc = fitz.open(stream=original_pdf_bytes, filetype="pdf")
+    if len(doc) == 0:
+        return original_pdf_bytes
+
+    page = doc[0]
+    
+    # 1. Locate bounding area for skills/projects by scanning words/spans
+    text_dict = page.get_text("dict")
+    skills_bbox = None
+    projects_bbox = None
+    last_bbox = None
+    base_font_size = 10.0
+    
+    for block in text_dict.get("blocks", []):
+        if block.get("type") == 0:
+            for line in block.get("lines", []):
+                for span in line.get("spans", []):
+                    t = span.get("text", "").strip().lower()
+                    if any(h in t for h in SKILLS_HEADERS) and not skills_bbox:
+                        skills_bbox = span.get("bbox")
+                    if any(h in t for h in PROJECTS_HEADERS) and not projects_bbox:
+                        projects_bbox = span.get("bbox")
+                    last_bbox = span.get("bbox")
+                    if span.get("size"):
+                        base_font_size = span.get("size")
+
+    # Determine redaction/replacement zone
+    y_start = (skills_bbox or projects_bbox or (50, 200, 500, 220))[1]
+    y_end = (last_bbox or (50, 700, 500, 750))[3] + 40
+    
+    # Bounding rectangle for the rewrite zone
+    zone_rect = fitz.Rect(page.rect.x0 + 40, y_start, page.rect.x1 - 40, min(y_end, page.rect.y1 - 40))
+    
+    # Redact the old content area (white-out)
+    page.draw_rect(zone_rect, color=None, fill=(1, 1, 1), overlay=True)
+    
+    # 2. Write new text into the exact location
+    clean_text = rewritten_text.replace("## ", "").replace("### ", "").replace("# ", "")
+    page.insert_textbox(
+        zone_rect,
+        clean_text,
+        fontsize=base_font_size,
+        fontname="helv",
+        color=(0.1, 0.1, 0.1),
+        align=fitz.TEXT_ALIGN_LEFT,
+    )
+    
+    output_bytes = doc.tobytes()
+    doc.close()
+    return output_bytes
+
+
 def extract_sections(text: str) -> dict[str, str | bool]:
     """Return {'skills': ..., 'projects': ...} pulled from resume text."""
     skills_text = _extract_section(text, SKILLS_HEADERS)
