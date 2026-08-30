@@ -1,0 +1,101 @@
+/* ─── Results page shell & side panel drawers ────────────────── */
+.results-page-shell {
+  min-height: 100vh;
+  background: var(--color-background);
+  padding: 2rem 1.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  box-sizing: border-box;
+}
+
+.results-main-col {
+  width: 100%;
+  max-width: 1000px;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 4rem);
+  max-height: calc(100vh - 4rem);
+  box-sizing: border-box;
+  position: relative;
+}
+
+.side-dialog-panel {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.results-action-bar {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.results-action-bar .btn {
+  height: 2.4rem;
+  padding: 0 1.25rem;
+}
+
+@media (min-width: 1300px) {
+  .results-main-col {
+    max-width: 900px;
+  }
+  .side-panel-left {
+    position: absolute;
+    right: calc(100% + 1.5rem);
+    top: 0;
+    width: 360px;
+    pointer-events: none;
+    z-index: 40;
+  }
+  .side-panel-left > .side-dialog-panel {
+    pointer-events: auto;
+    position: sticky;
+    top: 2rem;
+    width: 100%;
+    height: calc(100vh - 4rem);
+    box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.6);
+  }
+  .side-panel-right {
+    position: absolute;
+    left: calc(100% + 1.5rem);
+    top: 0;
+    width: 360px;
+    pointer-events: none;
+    z-index: 40;
+  }
+  .side-panel-right > .side-dialog-panel {
+    pointer-events: auto;
+    position: sticky;
+    top: 2rem;
+    width: 100%;
+    height: calc(100vh - 4rem);
+    box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.6);
+  }
+}
+
+@media (max-width: 1299px) {
+  .side-panel-left, .side-panel-right {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+  }
+  .side-panel-left > .side-dialog-panel, .side-panel-right > .side-dialog-panel {
+    width: 100%;
+    max-width: 480px;
+    max-height: 85vh;
+  }
+}

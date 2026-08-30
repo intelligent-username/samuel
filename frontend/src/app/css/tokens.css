@@ -1,0 +1,47 @@
+/* ─── Design Tokens ─────────────────────────────────────────── */
+:root {
+  /* Default to Dark Mode */
+  --surface: #070709;
+  --shadow-light: transparent;
+  --shadow-dark: transparent;
+
+  /* Semantic */
+  --color-background: #070709;
+  --color-foreground: #f4f4f5;
+  --color-card: #0f0f13;
+  --color-muted: #141419;
+  --color-muted-fg: #6c6c74;
+  --color-border: #1f1f26;
+  --color-primary: #006699;
+  --color-primary-fg: #ffffff;
+  --color-accent: #FC6A03;
+  --color-accent-fg: #ffffff;
+  --color-destructive: #991b1b;
+  --color-destructive-fg: #ffffff;
+  --color-success: #1a9e6e;
+  --color-success-fg: #ffffff;
+
+  /* Flat Shadows */
+  --nm-low:   0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --nm-mid:   0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+  --nm-high:  0 10px 15px -3px rgba(0, 0, 0, 0.7), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
+  --nm-inset: none;
+}
+
+.dark {
+  --surface: #070709;
+  --color-background: #070709;
+  --color-foreground: #f4f4f5;
+  --color-card: #0f0f13;
+  --color-muted: #141419;
+  --color-muted-fg: #6c6c74;
+  --color-border: #1f1f26;
+  --color-primary: #006699;
+  --color-primary-fg: #ffffff;
+  --color-accent: #FC6A03;
+  --color-accent-fg: #ffffff;
+  --color-destructive: #991b1b;
+  --color-destructive-fg: #ffffff;
+  --color-success: #1a9e6e;
+  --color-success-fg: #ffffff;
+}

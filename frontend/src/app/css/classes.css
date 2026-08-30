@@ -1,0 +1,302 @@
+/* ─── Flat Cards ─────────────────────────────────────────────── */
+.nm-card {
+  background: var(--color-card);
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  padding: 1.5rem;
+}
+
+.nm-card-sm {
+  background: var(--color-card);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  padding: 1rem 1.25rem;
+}
+
+.nm-inset {
+  background: var(--color-card);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+/* ─── Buttons ────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  text-decoration: none;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--color-border);
+  border-color: var(--color-primary);
+}
+
+.btn:active:not(:disabled) {
+  background: var(--color-background);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+  border-color: var(--color-primary);
+}
+.btn-primary:hover:not(:disabled) { filter: brightness(1.15); }
+
+.btn-accent {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  border-color: var(--color-accent);
+}
+.btn-accent:hover:not(:disabled) { filter: brightness(1.15); }
+
+.btn-success {
+  background: var(--color-success);
+  color: var(--color-success-fg);
+  border-color: var(--color-success);
+}
+.btn-success:hover:not(:disabled) { filter: brightness(1.15); }
+
+.btn-destructive {
+  background: var(--color-destructive);
+  color: var(--color-destructive-fg);
+  border-color: var(--color-destructive);
+}
+.btn-destructive:hover:not(:disabled) { filter: brightness(1.15); }
+
+.btn-outline-destructive {
+  background: var(--color-card);
+  color: var(--color-destructive);
+  border-color: rgba(220, 38, 38, 0.4);
+}
+.btn-outline-destructive:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: var(--color-destructive);
+}
+
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-muted-fg);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--color-muted); border-color: transparent; }
+
+.btn-sm { padding: 0.4rem 0.875rem; font-size: 0.8125rem; border-radius: 6px; }
+.btn-xs { padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px; }
+.btn-lg { padding: 0.75rem 1.75rem; font-size: 1rem; border-radius: 10px; }
+
+/* ─── Form Elements ──────────────────────────────────────────── */
+.input, .textarea, .select {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--color-foreground);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  outline: none;
+  transition: border-color 0.18s ease;
+  resize: none;
+}
+
+.input:focus, .textarea:focus, .select:focus {
+  border-color: var(--color-primary);
+}
+
+.input::placeholder, .textarea::placeholder {
+  color: var(--color-muted-fg);
+  opacity: 0.5;
+}
+
+/* ─── Layout Utilities ───────────────────────────────────────── */
+.container {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding-inline: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .container { padding-inline: 1rem; }
+}
+
+.section { margin-bottom: 2rem; }
+
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+
+/* ─── Step Indicator ─────────────────────────────────────────── */
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  transition: border-color 0.2s ease;
+}
+
+.step-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+}
+
+.step-icon.pending { background: var(--color-muted); color: var(--color-muted-fg); }
+.step-icon.active  { background: var(--color-primary); color: #fff; border-color: var(--color-primary); animation: pulse 1.4s ease-in-out infinite; }
+.step-icon.done    { background: var(--color-success); color: var(--color-success-fg); border-color: var(--color-success); }
+.step-icon.error   { background: var(--color-destructive); color: var(--color-destructive-fg); border-color: var(--color-destructive); }
+
+@keyframes pulse {
+  0%, 100% { border-color: var(--color-primary); }
+  50%       { border-color: transparent; }
+}
+
+/* ─── Tag Chips ──────────────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--color-muted);
+  color: var(--color-muted-fg);
+  border: 1px solid var(--color-border);
+}
+
+/* ─── Misc Text Utilities ────────────────────────────────────── */
+.text-muted { color: var(--color-muted-fg); font-size: 0.875rem; }
+.text-sm { font-size: 0.875rem; }
+.text-xs { font-size: 0.75rem; }
+.font-mono { font-family: "Fira Code", "Cascadia Code", monospace; }
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Viewport Shell Utilities ───────────────────────────────── */
+.viewport-shell {
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+.viewport-center {
+  min-height: 100vh;
+  background: var(--color-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── Modal & Dialog Utilities ───────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal-dialog {
+  max-width: 420px;
+  width: 100%;
+  border-color: var(--color-border);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.75rem;
+}
+
+/* ─── Popovers & Selection Controls ──────────────────────────── */
+.popover-card {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 50;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: var(--nm-mid);
+}
+
+.checkbox-control {
+  accent-color: var(--color-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.close-btn {
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+}
+
+.indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ─── Custom Scrollbar Utility ───────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 99px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--color-primary); }
+
+/* ─── Loading Spinner ────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.spinner-xs  { width: 0.6rem; height: 0.6rem; border-width: 1.5px; }
+.spinner-sm  { width: 1rem;   height: 1rem;   }
+.spinner-lg  { width: 2.5rem; height: 2.5rem; border-width: 3px; }
