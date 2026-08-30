@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
+import * as THREE from "three";
 
 export interface Borromean3DViewerProps {
   height?: number | string;
@@ -10,6 +11,7 @@ export interface Borromean3DViewerProps {
   label?: string;
   className?: string;
   style?: React.CSSProperties;
+  color?: "gold" | "blue";
 }
 
 export default function Borromean3DViewer({
@@ -20,6 +22,7 @@ export default function Borromean3DViewer({
   label,
   className,
   style,
+  color = "gold",
 }: Borromean3DViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -35,18 +38,16 @@ export default function Borromean3DViewer({
     let animId: number;
     let cleanupFn: (() => void) | undefined;
 
-    const init = async () => {
-      // Use npm-installed three (single instance) — avoids duplicate warning from CDN + npm
-      const THREE = await import("three");
-      if (!THREE || !active) return;
+    const init = () => {
+      if (!active) return;
 
       const container = containerRef.current;
       if (!container) return;
 
       // 1. Scene, Camera, 4K Super-Sampled WebGL Renderer
       const scene = new THREE.Scene();
-      const initialW = container.clientWidth || (typeof width === "number" ? width : 400);
-      const initialH = container.clientHeight || (typeof height === "number" ? height : 360);
+      const initialW = (typeof width === "number" ? width : container.clientWidth) || 400;
+      const initialH = (typeof height === "number" ? height : container.clientHeight) || 360;
 
       const camera = new THREE.PerspectiveCamera(40, initialW / initialH, 0.1, 100);
       camera.position.set(0, 0, 7.6);
@@ -62,7 +63,9 @@ export default function Borromean3DViewer({
       const getOptimalPixelRatio = () => Math.max((window.devicePixelRatio || 1) * 2, 2.5);
       renderer.setPixelRatio(getOptimalPixelRatio());
       renderer.setSize(initialW, initialH, true);
-      renderer.outputEncoding = THREE.sRGBEncoding || 3001;
+      if ("outputColorSpace" in renderer && THREE.SRGBColorSpace) {
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+      }
 
       while (container.firstChild) {
         container.removeChild(container.firstChild);
@@ -74,22 +77,24 @@ export default function Borromean3DViewer({
       dom.style.width = "100%";
       dom.style.height = "100%";
 
-      // 2. Studio Lighting
-      scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+      const isBlue = color === "blue";
 
-      const keyLight = new THREE.DirectionalLight(0xfff8ee, 3.4);
+      // 2. Studio Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, isBlue ? 1.6 : 1.4));
+
+      const keyLight = new THREE.DirectionalLight(isBlue ? 0xe0f2fe : 0xfff8ee, 3.4);
       keyLight.position.set(6, 8, 7);
       scene.add(keyLight);
 
-      const fillLight = new THREE.DirectionalLight(0x0088cc, 2.4);
+      const fillLight = new THREE.DirectionalLight(isBlue ? 0x0284c7 : 0x0088cc, 2.4);
       fillLight.position.set(-6, -4, -5);
       scene.add(fillLight);
 
-      const rimLight = new THREE.PointLight(0xfc6a03, 3.4, 30);
+      const rimLight = new THREE.PointLight(isBlue ? 0x38bdf8 : 0xfc6a03, 3.4, 30);
       rimLight.position.set(0, 5, -6);
       scene.add(rimLight);
 
-      const bounceLight = new THREE.PointLight(0xa07838, 2.2, 20);
+      const bounceLight = new THREE.PointLight(0x0284c7, 2.2, 20);
       bounceLight.position.set(0, -6, 3);
       scene.add(bounceLight);
 
@@ -137,14 +142,14 @@ export default function Borromean3DViewer({
 
       // 4. Smooth Anti-Aliased Materials
       const rimMaterial = new THREE.MeshStandardMaterial({
-        color: 0xd4b06a,
-        metalness: 0.92,
+        color: isBlue ? 0x60c5ff : 0xd4b06a,
+        metalness: isBlue ? 0.88 : 0.92,
         roughness: 0.2,
       });
 
       const meshMaterial = new THREE.MeshStandardMaterial({
-        color: 0xc49f56,
-        metalness: 0.9,
+        color: isBlue ? 0x0284c7 : 0xc49f56,
+        metalness: isBlue ? 0.85 : 0.9,
         roughness: 0.26,
         alphaMap: perforatedTex,
         transparent: true,
@@ -363,13 +368,13 @@ export default function Borromean3DViewer({
       };
     };
 
-    init().catch(console.error);
+    init();
 
     return () => {
       active = false;
       if (cleanupFn) cleanupFn();
     };
-  }, [height, width, speedMult, interactive]);
+  }, [height, width, speedMult, interactive, color]);
 
   const h = typeof height === "number" ? `${height}px` : height;
   const w = typeof width === "number" ? `${width}px` : width;
@@ -378,13 +383,15 @@ export default function Borromean3DViewer({
     <div
       className={className}
       style={{
-        display: label ? "inline-flex" : "block",
+        display: "inline-flex",
         flexDirection: label ? "column" : undefined,
-        alignItems: label ? "center" : undefined,
-        justifyContent: label ? "center" : undefined,
+        alignItems: "center",
+        justifyContent: "center",
         gap: label ? "0.5rem" : undefined,
         pointerEvents: interactive ? "auto" : "none",
         userSelect: "none",
+        width: w,
+        height: h,
         ...style,
       }}
       aria-label="3D Borromean Sculpture"

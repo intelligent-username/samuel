@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { getLoginUrl, fetchMe } from "@/lib/api";
 import Borromean3DViewer from "@/components/Borromean3DViewer";
+import BorromeanLoader from "@/components/BorromeanLoader";
 
 export default function Home() {
   const router = useRouter();
@@ -14,39 +15,37 @@ export default function Home() {
 
   useEffect(() => {
     fetchMe()
-      .then(() => router.replace("/dashboard"))
+      .then(() => router.push("/dashboard"))
       .catch(() => setChecking(false));
+    getLoginUrl()
+      .then((data) => setLoginUrl(data.url))
+      .catch(() => {});
   }, [router]);
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
+    if (!loginUrl) return;
     setLoading(true);
     try {
-      const url = await getLoginUrl();
-      window.location.href = url;
+      const url = new URL(loginUrl);
+      if (typeof window !== "undefined") {
+        url.searchParams.set("redirect_uri", `${window.location.origin}/auth/callback`);
+      }
+      window.location.href = url.toString();
     } catch {
-      setLoading(false);
+      window.location.href = loginUrl;
     }
   };
 
   if (checking) {
     return (
-      <main style={{ minHeight: "100vh", background: "var(--color-background)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span className="spinner spinner-lg" />
+      <main className="viewport-center">
+        <BorromeanLoader size={96} label="Loading…" />
       </main>
     );
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "var(--color-background)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "2rem",
-      }}
-    >
+    <main className="viewport-center" style={{ padding: "2rem" }}>
       <div style={{ textAlign: "center", maxWidth: "480px", width: "100%" }}>
         {/* Live 3D Model Showcase */}
         <div style={{ marginBottom: "1rem" }}>
@@ -72,7 +71,6 @@ export default function Home() {
             onClick={handleLogin}
             disabled={loading}
             className="btn btn-primary btn-lg"
-            style={{ width: "100%", justifyContent: "center", gap: "0.75rem" }}
           >
             {loading ? (
               <span className="spinner spinner-sm" />

@@ -38,15 +38,8 @@ export default function GenerationProgressCard({
         type="button"
         onClick={onStop}
         disabled={stopping}
-        className="btn btn-sm"
-        style={{
-          color: "var(--color-destructive)",
-          borderColor: "rgba(220, 38, 38, 0.4)",
-          background: "var(--color-card)",
-          gap: "0.35rem",
-          cursor: "pointer",
-          marginTop: "0.25rem",
-        }}
+        className="btn btn-sm btn-outline-destructive"
+        style={{ marginTop: "0.25rem" }}
       >
         {stopping && <span className="spinner spinner-sm" />}
         <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>

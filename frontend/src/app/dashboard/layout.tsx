@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { fetchMe } from "@/lib/api";
+import BorromeanLoader from "@/components/BorromeanLoader";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -17,25 +18,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "var(--color-background)",
-        }}
-      >
-        <div style={{ textAlign: "center", gap: "1rem", display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <span className="spinner spinner-lg" />
-          <p className="text-muted">Loading…</p>
-        </div>
+      <div className="viewport-center">
+        <BorromeanLoader size={96} label="Loading…" />
       </div>
     );
   }
 
   return (
-    <div style={{ background: "var(--color-background)" }}>
+    <div className="viewport-shell">
       <main style={{ padding: 0 }}>
         {children}
       </main>

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import BorromeanLogo from "@/components/BorromeanLogo";
+import Borromean3DViewer from "@/components/Borromean3DViewer";
 import LangBar from "@/components/LangBar";
 import type { Repository } from "@/lib/types";
 
@@ -87,17 +87,9 @@ export default function DashboardSidebar({
                   key={r.id}
                   className="repo-row"
                   onClick={() => onSelectRepo && onSelectRepo(r)}
-                  style={{
-                    padding: "0.65rem 0.75rem",
-                    borderBottom: "1px solid var(--color-border)",
-                    cursor: "pointer",
-                    transition: "background 0.15s ease",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-muted)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--color-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div className="flex items-center justify-between">
+                    <span className="truncate" style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--color-foreground)" }}>
                       {r.name}
                     </span>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0, marginLeft: "0.5rem" }}>
@@ -114,7 +106,7 @@ export default function DashboardSidebar({
                     </div>
                   </div>
                   {r.description && (
-                    <p style={{ margin: "0.2rem 0 0", fontSize: "0.72rem", color: "var(--color-muted-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <p className="truncate" style={{ margin: "0.2rem 0 0", fontSize: "0.72rem", color: "var(--color-muted-fg)" }}>
                       {r.description}
                     </p>
                   )}
@@ -133,7 +125,7 @@ export default function DashboardSidebar({
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
               <div className="nm-card-sm" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1, padding: "0.5rem 0.75rem" }}>
                 <span style={{ letterSpacing: "0.15em", color: "var(--color-muted-fg)", fontSize: "0.8rem" }}>••••••••••••••••</span>
-                <span className="chip" style={{ marginLeft: "auto", color: "#1a9e6e", borderColor: "#1a9e6e", fontSize: "0.65rem" }}>Saved</span>
+                <span className="chip" style={{ marginLeft: "auto", color: "var(--color-success)", borderColor: "var(--color-success)", fontSize: "0.65rem" }}>Saved</span>
               </div>
               <button id="change-key-btn" onClick={() => setShowKeyInput && setShowKeyInput(true)} className="btn btn-sm">Change</button>
             </div>
@@ -164,7 +156,7 @@ export default function DashboardSidebar({
       {/* Footer Navigation */}
       <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--color-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
-          <BorromeanLogo size={18} />
+          <Borromean3DViewer width={20} height={20} interactive={false} style={{ display: "inline-flex", flexShrink: 0 }} />
           <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Samuel</span>
         </div>
         <Link href="/dashboard/history" style={{ fontSize: "0.75rem", color: "var(--color-primary)", textDecoration: "underline" }}>

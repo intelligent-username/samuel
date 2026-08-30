@@ -31,14 +31,14 @@ export default function LangBar({ languages }: LangBarProps) {
           <div
             key={lang}
             title={`${lang}: ${((bytes / total) * 100).toFixed(1)}%`}
-            style={{ flex: bytes, background: LANG_COLORS[lang] ?? "#888", minWidth: "2px" }}
+            style={{ flex: bytes, background: LANG_COLORS[lang] ?? "var(--color-muted-fg)", minWidth: "2px" }}
           />
         ))}
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.35rem" }}>
         {entries.slice(0, 4).map(([lang, bytes]) => (
           <span key={lang} style={{ display: "flex", alignItems: "center", gap: "0.2rem", fontSize: "0.65rem", color: "var(--color-muted-fg)" }}>
-            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: LANG_COLORS[lang] ?? "#888", display: "inline-block", flexShrink: 0 }} />
+            <span className="indicator-dot" style={{ width: "6px", height: "6px", background: LANG_COLORS[lang] ?? "var(--color-muted-fg)" }} />
             {lang} <span style={{ opacity: 0.6 }}>{((bytes / total) * 100).toFixed(0)}%</span>
           </span>
         ))}

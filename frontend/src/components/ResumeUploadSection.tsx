@@ -124,12 +124,8 @@ export default function ResumeUploadSection({
               }}
             >
               <span
-                style={{
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  flex: 1,
-                }}
+                className="truncate"
+                style={{ flex: 1 }}
               >
                 {selectedResume?.original_filename ?? "Select resume"}
               </span>
@@ -145,20 +141,14 @@ export default function ResumeUploadSection({
 
             {resumeMenuOpen && (
               <div
-                className="nm-card custom-scrollbar"
+                className="nm-card custom-scrollbar popover-card"
                 style={{
-                  position: "absolute",
-                  top: "calc(100% + 6px)",
                   right: 0,
                   width: "340px",
                   maxWidth: "min(340px, 92vw)",
                   maxHeight: "340px",
                   overflowY: "auto",
                   padding: "0.35rem",
-                  zIndex: 50,
-                  background: "var(--color-card)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "10px",
                 }}
               >
                 {(uploadedResumes.length > 0 && generatedResumes.length > 0
@@ -324,7 +314,6 @@ export default function ResumeUploadSection({
           id="upload-resume-btn"
           onClick={() => fileRef.current?.click()}
           className="btn btn-primary btn-sm"
-          style={{ padding: "0.45rem 1.25rem" }}
         >
           Browse File
         </button>

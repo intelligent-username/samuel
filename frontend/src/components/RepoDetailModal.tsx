@@ -20,17 +20,8 @@ export default function RepoDetailModal({ repo, onClose }: RepoDetailModalProps)
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        background: "rgba(0,0,0,0.6)",
-        backdropFilter: "blur(4px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1.5rem",
-      }}
+      className="modal-backdrop"
+      style={{ zIndex: 1000, padding: "1.5rem" }}
       onClick={onClose}
     >
       <div
@@ -135,7 +126,7 @@ export default function RepoDetailModal({ repo, onClose }: RepoDetailModalProps)
                     {Object.entries(repo.languages).sort((a, b) => b[1] - a[1]).map(([lang, bytes]) => (
                       <div key={lang} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: LANG_COLORS[lang] ?? "#888", display: "inline-block" }} />
+                          <span className="indicator-dot" style={{ background: LANG_COLORS[lang] ?? "var(--color-muted-fg)" }} />
                           {lang}
                         </span>
                         <span className="text-muted">{((bytes / total) * 100).toFixed(1)}%</span>

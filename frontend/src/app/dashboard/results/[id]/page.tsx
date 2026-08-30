@@ -138,15 +138,7 @@ export default function ResultsPage() {
         />
 
         {/* Top Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "1rem",
-            flexShrink: 0,
-          }}
-        >
+        <div className="flex items-center justify-between" style={{ marginBottom: "1rem", flexShrink: 0 }}>
           <div>
             <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>
               {done ? "Resume ready" : "Rewriting your resume"}
@@ -158,7 +150,6 @@ export default function ResultsPage() {
           <Link
             href="/dashboard"
             className="btn btn-ghost btn-sm"
-            style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
           >
             ← Back to Dashboard
           </Link>

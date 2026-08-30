@@ -6,6 +6,7 @@ import Link from "next/link";
 import { fetchGenerations } from "@/lib/api";
 import type { Generation } from "@/lib/types";
 import HistoryList from "@/components/HistoryList";
+import BorromeanLoader from "@/components/BorromeanLoader";
 
 export default function HistoryPage() {
   const [generations, setGenerations] = useState<Generation[]>([]);
@@ -23,16 +24,16 @@ export default function HistoryPage() {
   if (loading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", paddingTop: "4rem" }}>
-        <span className="spinner spinner-lg" />
+        <BorromeanLoader size={96} label="Loading history…" />
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-background)", padding: "2.5rem 1.5rem" }}>
+    <div className="viewport-shell" style={{ padding: "2.5rem 1.5rem" }}>
       <main style={{ maxWidth: "860px", margin: "0 auto", display: "flex", flexDirection: "column" }}>
         {/* Top Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "2rem" }}>
+        <div className="flex items-center justify-between" style={{ marginBottom: "2rem" }}>
           <div>
             <h1
               style={{
@@ -51,7 +52,6 @@ export default function HistoryPage() {
           <Link
             href="/dashboard"
             className="btn btn-ghost btn-sm"
-            style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
           >
             ← Back to Dashboard
           </Link>

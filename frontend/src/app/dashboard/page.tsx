@@ -195,7 +195,7 @@ export default function DashboardPage() {
     msg?.type === "error"
       ? "var(--color-destructive)"
       : msg?.type === "success"
-      ? "#1a9e6e"
+      ? "var(--color-success)"
       : "var(--color-primary)";
 
   return (
@@ -262,7 +262,6 @@ export default function DashboardPage() {
                 onClick={handleGenerate}
                 disabled={generating || overLimit || jdTrimLen < 10}
                 className="btn btn-accent btn-lg"
-                style={{ width: "100%", justifyContent: "center", paddingBlock: "0.875rem" }}
               >
                 {generating && <span className="spinner spinner-sm" />}
                 {generating ? "Starting generation..." : "Generate Rewritten Resume"}
@@ -270,20 +269,17 @@ export default function DashboardPage() {
 
               {msg && (
                 <div
+                  className="popover-card"
                   style={{
-                    position: "absolute",
                     top: "calc(100% + 0.75rem)",
                     left: 0,
                     right: 0,
                     padding: "0.75rem 1rem",
                     borderRadius: "8px",
-                    background: "var(--color-card)",
-                    border: "1px solid var(--color-border)",
                     color: msgColor,
                     fontSize: "0.875rem",
                     fontWeight: 500,
                     zIndex: 10,
-                    boxShadow: "var(--nm-mid)",
                   }}
                 >
                   {msg.text}

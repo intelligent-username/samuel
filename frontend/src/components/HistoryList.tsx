@@ -8,7 +8,7 @@ import type { Generation } from "@/lib/types";
 const STATUS_META: Record<string, { label: string; color: string }> = {
   pending:   { label: "Pending",   color: "var(--color-muted-fg)" },
   running:   { label: "Running",   color: "var(--color-primary)" },
-  completed: { label: "Completed", color: "#1a9e6e" },
+  completed: { label: "Completed", color: "var(--color-success)" },
   failed:    { label: "Failed",    color: "var(--color-destructive)" },
 };
 
@@ -194,27 +194,11 @@ export default function HistoryList({
       {/* Single Confirmation Dialog */}
       {confirmDeleteGen && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 100,
-            background: "rgba(0,0,0,0.65)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-          }}
+          className="modal-backdrop"
           onClick={() => !deletingId && setConfirmDeleteGen(null)}
         >
           <div
-            className="nm-card"
-            style={{
-              maxWidth: 420,
-              width: "100%",
-              borderColor: "var(--color-border)",
-              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.5)",
-            }}
+            className="nm-card modal-dialog"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>Delete Generation</h3>
@@ -237,12 +221,7 @@ export default function HistoryList({
               </button>
               <button
                 type="button"
-                className="btn btn-sm"
-                style={{
-                  background: "var(--color-destructive)",
-                  color: "#fff",
-                  borderColor: "var(--color-destructive)",
-                }}
+                className="btn btn-sm btn-destructive"
                 onClick={handleDelete}
                 disabled={!!deletingId}
               >
@@ -256,27 +235,11 @@ export default function HistoryList({
       {/* Multi-Delete Confirmation Dialog */}
       {confirmMultiDelete && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 100,
-            background: "rgba(0,0,0,0.65)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-          }}
+          className="modal-backdrop"
           onClick={() => !isMultiDeleting && setConfirmMultiDelete(false)}
         >
           <div
-            className="nm-card"
-            style={{
-              maxWidth: 420,
-              width: "100%",
-              borderColor: "var(--color-border)",
-              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.5)",
-            }}
+            className="nm-card modal-dialog"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>Delete {selectedIds.size} Generations</h3>
@@ -299,12 +262,7 @@ export default function HistoryList({
               </button>
               <button
                 type="button"
-                className="btn btn-sm"
-                style={{
-                  background: "var(--color-destructive)",
-                  color: "#fff",
-                  borderColor: "var(--color-destructive)",
-                }}
+                className="btn btn-sm btn-destructive"
                 onClick={handleMultiDelete}
                 disabled={isMultiDeleting}
               >
@@ -396,13 +354,7 @@ export default function HistoryList({
                 type="checkbox"
                 checked={isSelectMode}
                 onChange={toggleSelectMode}
-                style={{
-                  accentColor: "var(--color-primary)",
-                  cursor: "pointer",
-                  width: "16px",
-                  height: "16px",
-                  margin: 0,
-                }}
+                className="checkbox-control"
               />
             </label>
           </div>
@@ -512,7 +464,7 @@ export default function HistoryList({
                         >
                           {actionGenId === gen.id ? (
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-                              <span className="spinner spinner-sm" style={{ width: "9px", height: "9px", borderWidth: "1.5px" }} />
+                              <span className="spinner spinner-xs" />
                               Stopping…
                             </span>
                           ) : hoveredTagGenId === gen.id ? (
@@ -521,7 +473,7 @@ export default function HistoryList({
                             </span>
                           ) : (
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-                              <span className="spinner spinner-sm" style={{ width: "8px", height: "8px", borderWidth: "1.5px" }} />
+                              <span className="spinner spinner-xs" />
                               Running
                             </span>
                           )}
@@ -581,13 +533,13 @@ export default function HistoryList({
                             padding: "0.1rem 0.45rem",
                             color:
                               gen.ats_report.score >= 80
-                                ? "#1a9e6e"
+                                ? "var(--color-success)"
                                 : gen.ats_report.score > 45
                                 ? "var(--color-accent)"
                                 : "var(--color-destructive)",
                             borderColor:
                               gen.ats_report.score >= 80
-                                ? "#1a9e6e"
+                                ? "var(--color-success)"
                                 : gen.ats_report.score > 45
                                 ? "var(--color-accent)"
                                 : "var(--color-destructive)",
@@ -625,12 +577,7 @@ export default function HistoryList({
                           type="checkbox"
                           checked={isChecked}
                           onChange={(e) => toggleCheck(gen.id, e)}
-                          style={{
-                            accentColor: "var(--color-primary)",
-                            width: "16px",
-                            height: "16px",
-                            cursor: "pointer",
-                          }}
+                          className="checkbox-control"
                         />
                       </div>
                     ) : (

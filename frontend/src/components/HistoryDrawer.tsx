@@ -2,6 +2,7 @@
 
 import React from "react";
 import HistoryList from "@/components/HistoryList";
+import BorromeanLoader from "@/components/BorromeanLoader";
 import type { Generation } from "@/lib/types";
 
 interface HistoryDrawerProps {
@@ -34,27 +35,10 @@ export default function HistoryDrawer({
     >
       <div
         className="side-dialog-panel nm-card"
-        style={{
-          background: "var(--color-card)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "14px",
-          padding: "1.25rem",
-          display: "flex",
-          flexDirection: "column",
-          animation: "historyDialogIn 0.28s cubic-bezier(0.16, 1, 0.3, 1)",
-        }}
+        style={{ animation: "historyDialogIn 0.28s cubic-bezier(0.16, 1, 0.3, 1)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "1rem",
-            borderBottom: "1px solid var(--color-border)",
-            paddingBottom: "0.75rem",
-          }}
-        >
+        <div className="panel-header">
           <div>
             <h3 style={{ fontSize: "1.125rem", fontWeight: 600, margin: 0 }}>
               Generation History
@@ -66,13 +50,7 @@ export default function HistoryDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="btn btn-ghost btn-xs"
-            style={{
-              fontSize: "1.25rem",
-              lineHeight: 1,
-              padding: "0.2rem 0.45rem",
-              borderRadius: "4px",
-            }}
+            className="btn btn-ghost btn-xs close-btn"
             title="Close (Esc)"
           >
             ×
@@ -89,7 +67,7 @@ export default function HistoryDrawer({
               padding: "3rem 0",
             }}
           >
-            <span className="spinner spinner-lg" />
+            <BorromeanLoader size={72} label="Loading history…" />
           </div>
         ) : (
           <div

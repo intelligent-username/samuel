@@ -601,24 +601,6 @@ export default function JobDescriptionInput({
           onCut={handleCut}
           className="textarea custom-scrollbar jd-rich-editor"
           data-placeholder="Paste the target job description here (Markdown supported: # headings, - bullets, --- dividers)..."
-          style={{
-            flex: 1,
-            height: "440px",
-            minHeight: "440px",
-            maxHeight: "440px",
-            fontSize: "0.875rem",
-            lineHeight: "1.65",
-            overflowY: "auto",
-            padding: "1rem 1.4rem",
-            wordBreak: "break-word",
-            boxSizing: "border-box",
-            background: "var(--color-background)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "8px",
-            color: "var(--color-foreground)",
-            outline: "none",
-            cursor: "text",
-          }}
         />
 
         <p
@@ -639,18 +621,12 @@ export default function JobDescriptionInput({
           {overLimit && ` · over by ${Math.abs(charsRemaining)}`}
         </p>
         {overLimit && (
-          <p
-            className="text-xs"
-            style={{ color: "var(--color-destructive)", marginTop: "0.25rem", flexShrink: 0 }}
-          >
+          <p className="text-xs jd-error-msg">
             Job description too long (max {maxChars.toLocaleString()} characters)
           </p>
         )}
         {jdTrimLen > 0 && jdTrimLen < 10 && (
-          <p
-            className="text-xs"
-            style={{ color: "var(--color-destructive)", marginTop: "0.25rem", flexShrink: 0 }}
-          >
+          <p className="text-xs jd-error-msg">
             Job description too short (min 10 characters)
           </p>
         )}

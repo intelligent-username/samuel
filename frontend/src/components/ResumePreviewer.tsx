@@ -150,7 +150,7 @@ export default function ResumePreviewer({
               <line x1="16" y1="17" x2="8" y2="17" />
               <polyline points="10 9 9 9 8 9" />
             </svg>
-            <span style={{ maxWidth: isFullscreen ? "400px" : "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pdfFileName}>
+            <span className="truncate" style={{ maxWidth: isFullscreen ? "400px" : "200px" }} title={pdfFileName}>
               {pdfFileName}
             </span>
           </div>

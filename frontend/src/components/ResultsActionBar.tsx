@@ -54,28 +54,12 @@ export default function ResultsActionBar({
   };
 
   return (
-    <div
-      style={{
-        marginTop: "0.75rem",
-        display: "flex",
-        gap: "0.75rem",
-        flexWrap: "wrap",
-        alignItems: "center",
-        flexShrink: 0,
-      }}
-    >
+    <div className="results-action-bar">
       <button
         type="button"
         onClick={handleDownload}
         disabled={downloading}
         className="btn btn-primary"
-        style={{
-          height: "2.4rem",
-          padding: "0 1.25rem",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "0.4rem",
-        }}
       >
         {downloading && <span className="spinner spinner-sm" />}
         Download PDF
@@ -85,12 +69,6 @@ export default function ResultsActionBar({
         type="button"
         onClick={onToggleJd}
         className="btn btn-primary"
-        style={{
-          height: "2.4rem",
-          padding: "0 1.25rem",
-          display: "inline-flex",
-          alignItems: "center",
-        }}
       >
         {jdOpen ? "Hide Job Description" : "Show Job Description"}
       </button>
@@ -99,12 +77,6 @@ export default function ResultsActionBar({
         type="button"
         onClick={onToggleHistory}
         className="btn btn-primary"
-        style={{
-          height: "2.4rem",
-          padding: "0 1.25rem",
-          display: "inline-flex",
-          alignItems: "center",
-        }}
       >
         {historyOpen ? "Hide History" : "Show History"}
       </button>
@@ -130,13 +102,13 @@ export default function ResultsActionBar({
                   : "rgba(153, 27, 27, 0.15)",
               borderColor:
                 atsScore >= 80
-                  ? "#1a9e6e"
+                  ? "var(--color-success)"
                   : atsScore > 45
                   ? "var(--color-accent)"
                   : "var(--color-destructive)",
               color:
                 atsScore >= 80
-                  ? "#1a9e6e"
+                  ? "var(--color-success)"
                   : atsScore > 45
                   ? "var(--color-accent)"
                   : "var(--color-destructive)",

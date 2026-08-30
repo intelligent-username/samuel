@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, Suspense } from "react";
-
 import { useRouter, useSearchParams } from "next/navigation";
+import BorromeanLoader from "@/components/BorromeanLoader";
 
 function CallbackHandler() {
   const router = useRouter();
@@ -40,8 +40,8 @@ function CallbackHandler() {
   }, [code, state, router]);
 
   return (
-    <main style={{ minHeight: "100vh", background: "var(--color-background)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <span className="spinner spinner-lg" />
+    <main className="viewport-center">
+      <BorromeanLoader size={96} label="Authenticating…" />
     </main>
   );
 }
@@ -49,8 +49,8 @@ function CallbackHandler() {
 export default function AuthCallback() {
   return (
     <Suspense fallback={
-      <main style={{ minHeight: "100vh", background: "var(--color-background)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span className="spinner spinner-lg" />
+      <main className="viewport-center">
+        <BorromeanLoader size={96} label="Loading…" />
       </main>
     }>
       <CallbackHandler />
