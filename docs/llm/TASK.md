@@ -33,4 +33,5 @@ At this point, you can give feedback (like rewrite this), edit the resume yourse
 ## Step 6
 
 Download the PDF.
-You may clear your history if you like.
+
+User may clear your history.

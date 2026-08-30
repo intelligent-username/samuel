@@ -53,6 +53,7 @@ async def upload_resume(request: Request, file: UploadFile, db: AsyncSession = D
         user_id=user_id,
         original_filename=file.filename,
         extracted_text=text,
+        pdf_content=content,
     )
     db.add(resume)
     await db.commit()

@@ -17,7 +17,7 @@ from app.skills.jd_parser import JDParserSkill
 from app.skills.project_matcher import ProjectMatcherSkill
 from app.skills.resume_writer import ResumeWriterSkill
 from app.utils.llm import LLMClient
-from app.services.pdf_extractor import extract_sections
+from app.services.pdf_extractor import extract_sections, replace_sections_in_text, rewrite_pdf_layout
 
 
 class Orchestrator:
@@ -111,7 +111,24 @@ class Orchestrator:
             if projects_text:
                 parts.append(f"## Projects\n\n{projects_text}")
 
-            rewritten_text = "\n\n".join(parts)
+            sections_markup = "\n\n".join(parts)
+
+            # Assemble full resume text with new sections substituted in
+            original_extracted = generation.resume.extracted_text if generation.resume else ""
+            full_resume_text = (
+                replace_sections_in_text(original_extracted, skills_text, projects_text)
+                if original_extracted
+                else sections_markup
+            )
+
+            # In-place edit the original PDF document
+            edited_pdf_bytes = None
+            if generation.resume and generation.resume.pdf_content:
+                try:
+                    edited_pdf_bytes = rewrite_pdf_layout(generation.resume.pdf_content, sections_markup)
+                except Exception as err:
+                    import logging
+                    logging.getLogger(__name__).warning("In-place PDF rewriting failed in orchestrator: %s", err)
         except Exception as e:
             generation.skill_chain_debug_path = _debug_path()
             try:
@@ -122,10 +139,10 @@ class Orchestrator:
             raise
         yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": "Skills and projects sections rewritten"})}
 
-        # Step 4: ATS Checker
+        # Step 4: ATS Checker (evaluates the complete resume)
         yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Checking ATS compatibility..."})}
         try:
-            ats_report = await ATSCheckerSkill().run(rewritten_text, jd_req.keywords, self.llm, debug_dir=self.debug_dir)
+            ats_report = await ATSCheckerSkill().run(full_resume_text, jd_req.keywords, self.llm, debug_dir=self.debug_dir)
         except Exception as e:
             generation.skill_chain_debug_path = _debug_path()
             try:
@@ -136,15 +153,17 @@ class Orchestrator:
             raise
         yield {"event": "step-done", "data": json.dumps({"step": "ats_checker", "summary": f"ATS score: {ats_report.get('score', 'N/A')}/100"})}
 
-        generation.rewritten_resume_text = rewritten_text
+        generation.rewritten_resume_text = full_resume_text
+        if edited_pdf_bytes:
+            generation.pdf_content = edited_pdf_bytes
         generation.ats_report = ats_report
         generation.status = "completed"
         generation.completed_at = datetime.now(timezone.utc)
         generation.skill_chain_debug_path = str(self.debug_dir)
         await self.db.commit()
 
-        yield {"event": "output", "data": rewritten_text}
-        yield {"event": "done", "data": json.dumps({"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0), "rewritten_resume": rewritten_text, "pdf_url": f"/generate/{self.generation_id}/download"})}
+        yield {"event": "output", "data": full_resume_text}
+        yield {"event": "done", "data": json.dumps({"generation_id": str(self.generation_id), "ats_score": ats_report.get("score", 0), "rewritten_resume": full_resume_text, "pdf_url": f"/generate/{self.generation_id}/download"})}
 
     async def _get_user(self) -> User:
         # Fetch generation first to get user_id explicitly — avoids ambiguous join

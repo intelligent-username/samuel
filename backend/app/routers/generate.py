@@ -292,12 +292,16 @@ async def download_pdf(
     user_id = get_session_user_id(request)
     if user_id:
         result = await db.execute(
-            select(Generation).where(Generation.id == generation_id, Generation.user_id == user_id)
+            select(Generation)
+            .where(Generation.id == generation_id, Generation.user_id == user_id)
+            .options(selectinload(Generation.resume))
         )
     else:
         # Fallback for iframe preview subrequests where browsers block cross-port cookies
         result = await db.execute(
-            select(Generation).where(Generation.id == generation_id)
+            select(Generation)
+            .where(Generation.id == generation_id)
+            .options(selectinload(Generation.resume))
         )
     generation = result.scalar_one_or_none()
     if not generation:
@@ -309,12 +313,46 @@ async def download_pdf(
     if not generation.rewritten_resume_text:
         raise HTTPException(status_code=400, detail="No rewritten resume available")
 
+    # 1. First priority: Pre-rendered in-place edited PDF
+    if generation.pdf_content:
+        pdf_bytes = generation.pdf_content
+    # 2. Second priority: In-place rewrite from original uploaded PDF
+    elif generation.resume and generation.resume.pdf_content:
+        try:
+            from app.services.pdf_extractor import rewrite_pdf_layout
+            pdf_bytes = rewrite_pdf_layout(generation.resume.pdf_content, generation.rewritten_resume_text)
+            generation.pdf_content = pdf_bytes
+            await db.commit()
+        except Exception as e:
+            logger.warning("In-place PDF rewrite failed for %s, falling back to WeasyPrint: %s", generation_id, e)
+            pdf_bytes = _weasyprint_fallback(generation.rewritten_resume_text, generation_id)
+    else:
+        pdf_bytes = _weasyprint_fallback(generation.rewritten_resume_text, generation_id)
+
+    origin = request.headers.get("origin") or "http://localhost:3000"
+    filename = _sanitize_pdf_filename(generation.title)
+    encoded_filename = urllib.parse.quote(filename)
+    is_download = request.query_params.get("download", "").lower() in ("true", "1")
+    disposition = "attachment" if is_download else "inline"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{filename}"; filename*=UTF-8\'\'{encoded_filename}',
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+        },
+    )
+
+
+def _weasyprint_fallback(rewritten_text: str, generation_id) -> bytes:
+    """Render rewritten resume text as a fresh PDF via WeasyPrint (legacy path)."""
     try:
         from weasyprint import HTML
     except ImportError:
         raise HTTPException(status_code=501, detail="PDF generation not available — weasyprint not installed")
 
-    resume_html = _text_to_html(generation.rewritten_resume_text)
+    resume_html = _text_to_html(rewritten_text)
     html_content = dedent(f"""
         <!DOCTYPE html>
         <html>
@@ -337,25 +375,10 @@ async def download_pdf(
         </html>
     """)
     try:
-        pdf_bytes = HTML(string=html_content).write_pdf()
+        return HTML(string=html_content).write_pdf()
     except Exception as e:
         logger.exception("PDF rendering failed for %s: %s", generation_id, e)
         raise HTTPException(status_code=500, detail=f"PDF rendering failed: {e}")
-
-    origin = request.headers.get("origin") or "http://localhost:3000"
-    filename = _sanitize_pdf_filename(generation.title)
-    encoded_filename = urllib.parse.quote(filename)
-    is_download = request.query_params.get("download", "").lower() in ("true", "1")
-    disposition = "attachment" if is_download else "inline"
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'{disposition}; filename="{filename}"; filename*=UTF-8\'\'{encoded_filename}',
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Credentials": "true",
-        },
-    )
 
 
 @router.get("/{generation_id}/preview-html")

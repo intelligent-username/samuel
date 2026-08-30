@@ -55,21 +55,19 @@ OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 GROQ_BASE = "https://api.groq.com/openai/v1"
 
 GROQ_MODELS = [
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
     "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
+    "qwen/qwen3.6-27b",
     "openai/gpt-oss-120b",
-    "groq/compound-mini",
 ]
 
 # OpenRouter fallback — use base slugs (free suffix now 404 for these models). Groq is prioritized; this is backup.
-FALLBACK_MODELS = [
-    "meta-llama/llama-3.3-70b-instruct",
-    "google/gemma-3-27b-it",
-    "mistralai/mistral-small-3.1-24b-instruct",
-    "qwen/qwen-2.5-72b-instruct",
-    "deepseek/deepseek-r1",
-    "openrouter/auto",
+OPENROUTER_MODELS = [
+    "deepseek/deepseek-v4-flash-0731",
+    "openai/gpt-oss-20b",
+    "amazon/nova-micro-v1",
+    "nex-agi/nex-n2-mini",
+    "mistralai/mistral-nemo",
 ]
 
 _RETRYABLE = {429, 500, 502, 503, 504}
@@ -127,6 +125,10 @@ class LLMClient:
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
         }
+        if client == self._client:
+            payload["data_collection"] = "deny"
+            payload["sort"] = "throughput"
+
         if isinstance(model, list):
             payload["models"] = model
         else:
@@ -185,7 +187,7 @@ class LLMClient:
 
     async def _complete_openrouter(self, prompt: str) -> str:
         # Try each OpenRouter model sequentially (single `model` field) — more reliable than `models` array which 400s
-        for model in FALLBACK_MODELS:
+        for model in OPENROUTER_MODELS:
             content = await self._chat(self._client, model, prompt)
             if content is not None:
                 return content
@@ -198,6 +200,7 @@ class LLMClient:
             json={
                 "model": "openai/text-embedding-3-small",
                 "input": text,
+                "data_collection": "deny",
             },
         )
         resp.raise_for_status()
