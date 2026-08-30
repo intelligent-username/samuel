@@ -574,7 +574,32 @@ export default function HistoryList({
                         </span>
                       )}
                       {gen.status === "completed" && gen.ats_report && typeof gen.ats_report.score === "number" && (
-                        <span className="chip" style={{ fontSize: "0.7rem", padding: "0.1rem 0.45rem" }} title={gen.ats_report.issues?.length ? `${gen.ats_report.issues.length} issues` : undefined}>
+                        <span
+                          className="chip"
+                          style={{
+                            fontSize: "0.7rem",
+                            padding: "0.1rem 0.45rem",
+                            color:
+                              gen.ats_report.score >= 80
+                                ? "#1a9e6e"
+                                : gen.ats_report.score > 45
+                                ? "var(--color-accent)"
+                                : "var(--color-destructive)",
+                            borderColor:
+                              gen.ats_report.score >= 80
+                                ? "#1a9e6e"
+                                : gen.ats_report.score > 45
+                                ? "var(--color-accent)"
+                                : "var(--color-destructive)",
+                            background:
+                              gen.ats_report.score >= 80
+                                ? "rgba(26, 158, 110, 0.15)"
+                                : gen.ats_report.score > 45
+                                ? "rgba(252, 106, 3, 0.15)"
+                                : "rgba(153, 27, 27, 0.15)",
+                          }}
+                          title={gen.ats_report.issues?.length ? `${gen.ats_report.issues.length} issues` : undefined}
+                        >
                           ATS {gen.ats_report.score}/100
                           {Array.isArray(gen.ats_report.issues) && gen.ats_report.issues.length > 0 && !compact && (
                             <span style={{ marginLeft: "0.35rem", fontSize: "0.68rem", opacity: 0.85 }}>· {gen.ats_report.issues.length} issues</span>

@@ -256,7 +256,7 @@ export default function DashboardPage() {
               onRemoveResume={handleRemoveResumeOption}
             />
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", flexShrink: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, position: "relative" }}>
               <button
                 id="generate-btn"
                 onClick={handleGenerate}
@@ -269,7 +269,23 @@ export default function DashboardPage() {
               </button>
 
               {msg && (
-                <div style={{ padding: "0.75rem 1rem", borderRadius: "8px", background: "var(--color-card)", border: "1px solid var(--color-border)", color: msgColor, fontSize: "0.875rem", fontWeight: 500 }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 0.75rem)",
+                    left: 0,
+                    right: 0,
+                    padding: "0.75rem 1rem",
+                    borderRadius: "8px",
+                    background: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
+                    color: msgColor,
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    zIndex: 10,
+                    boxShadow: "var(--nm-mid)",
+                  }}
+                >
                   {msg.text}
                 </div>
               )}

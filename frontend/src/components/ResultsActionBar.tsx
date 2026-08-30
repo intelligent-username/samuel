@@ -125,9 +125,21 @@ export default function ResultsActionBar({
               background:
                 atsScore >= 80
                   ? "rgba(26, 158, 110, 0.15)"
-                  : "rgba(217, 119, 6, 0.15)",
-              borderColor: atsScore >= 80 ? "#1a9e6e" : "#d97706",
-              color: atsScore >= 80 ? "#1a9e6e" : "#d97706",
+                  : atsScore > 45
+                  ? "rgba(252, 106, 3, 0.15)"
+                  : "rgba(153, 27, 27, 0.15)",
+              borderColor:
+                atsScore >= 80
+                  ? "#1a9e6e"
+                  : atsScore > 45
+                  ? "var(--color-accent)"
+                  : "var(--color-destructive)",
+              color:
+                atsScore >= 80
+                  ? "#1a9e6e"
+                  : atsScore > 45
+                  ? "var(--color-accent)"
+                  : "var(--color-destructive)",
               fontWeight: 700,
               fontSize: "0.82rem",
             }}
