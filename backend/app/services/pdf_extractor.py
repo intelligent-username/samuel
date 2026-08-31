@@ -78,107 +78,393 @@ def extract_layout_from_pdf(content: bytes) -> dict:
     return {"pages": pages_layout}
 
 
-# ── Section boundary detection & in-place layout rewriting ──────────────────
+# ── Font mapping ────────────────────────────────────────────────────────────
 
-def _locate_section_region(page, headers: set[str]) -> dict | None:
-    """Find the bounding box, body font size, and text coordinates for a section on page."""
+_FONT_MAP = {
+    "helvetica": "helv", "arial": "helv", "calibri": "helv",
+    "helvetica-bold": "hebo", "arial-bold": "hebo", "calibri-bold": "hebo",
+    "helvetica-oblique": "heit", "arial-italic": "heit",
+    "helvetica-boldoblique": "hebi", "arial-bolditalic": "hebi",
+    "times": "tiro", "timesnewroman": "tiro", "timesnewromanpsmt": "tiro",
+    "times-bold": "tibo", "timesnewroman-bold": "tibo", "timesnewromanps-boldmt": "tibo",
+    "times-italic": "tiit", "timesnewroman-italic": "tiit", "timesnewromanps-italicmt": "tiit",
+    "times-bolditalic": "tibi",
+    "courier": "cour", "couriernew": "cour",
+    "courier-bold": "cobo", "couriernew-bold": "cobo",
+    "garamond": "tiro", "georgia": "tiro", "palatino": "tiro",
+    "cambria": "tiro", "bookantiqua": "tiro",
+}
+
+
+def _map_font(pdf_font_name: str) -> str:
+    """Map a PDF font name to the closest base14 font PyMuPDF can write with."""
+    if not pdf_font_name:
+        return "helv"
+    name = re.sub(r"^[A-Z]{6}\+", "", pdf_font_name)
+    key = name.lower().replace(" ", "").replace("-", "")
+
+    if key in _FONT_MAP:
+        return _FONT_MAP[key]
+    for map_key, base14 in _FONT_MAP.items():
+        if map_key in key or key in map_key:
+            return base14
+
+    base14_names = {"helv", "hebo", "heit", "hebi", "tiro", "tibo", "tiit", "tibi",
+                    "cour", "cobo", "coob", "cobi", "symb", "zadb"}
+    if pdf_font_name.lower() in base14_names:
+        return pdf_font_name
+    return "helv"
+
+
+def _color_int_to_tuple(c: int) -> tuple[float, float, float]:
+    return (((c >> 16) & 0xFF) / 255.0, ((c >> 8) & 0xFF) / 255.0, (c & 0xFF) / 255.0)
+
+
+# ── Style extraction: build a per-element-type profile from the PDF ─────────
+
+class _SpanStyle:
+    """Style properties for one type of text element."""
+    __slots__ = ("font_raw", "font", "size", "color", "x", "flags")
+
+    def __init__(self, font_raw: str, size: float, color: int, x: float, flags: int = 0):
+        self.font_raw = font_raw
+        self.font = _map_font(font_raw)
+        self.size = size
+        self.color = _color_int_to_tuple(color)
+        self.x = x
+        self.flags = flags
+
+    @property
+    def is_bold(self) -> bool:
+        return bool(self.flags & (1 << 4)) or "bold" in self.font_raw.lower()
+
+
+def _profile_section(page, headers: set[str]) -> dict | None:
+    """Profile a resume section, extracting separate styles for the header, sub-headers, and body/bullets.
+
+    Returns None if the section isn't found. Otherwise returns:
+        y_top:        top of the header line (for stream deletion boundary)
+        y_body_start: where body text begins (below header)
+        y_bottom:     bottom of section (above next header)
+        header_style: _SpanStyle for the section title
+        subheader_style: _SpanStyle for project name lines (bold / larger than body)
+        body_style:   _SpanStyle for regular body & bullet text
+        bullet_char:  the actual bullet character used (e.g. '•', '–', '-')
+        bullet_x:     x-position of the bullet character
+        text_x:       x-position of bullet continuation text
+        line_spacing:  measured vertical gap between body lines
+        lines:        list of parsed line dicts for reference
+    """
     text_dict = page.get_text("dict")
-    all_lines = []
 
+    # Flatten all lines with their spans
+    all_lines: list[dict] = []
     for block in text_dict.get("blocks", []):
-        if block.get("type") == 0:
-            for line in block.get("lines", []):
-                line_text = "".join(span.get("text", "") for span in line.get("spans", [])).strip()
-                max_size = max((span.get("size", 0) for span in line.get("spans", [])), default=0)
-                all_lines.append({
-                    "text": line_text,
-                    "bbox": line.get("bbox"),
-                    "spans": line.get("spans", []),
-                    "max_size": max_size,
-                })
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", []):
+            line_text = "".join(s.get("text", "") for s in line.get("spans", [])).strip()
+            if not line_text:
+                continue
+            max_size = max((s.get("size", 0) for s in line.get("spans", [])), default=0)
+            all_lines.append({
+                "text": line_text,
+                "bbox": line.get("bbox"),
+                "spans": line.get("spans", []),
+                "max_size": max_size,
+            })
 
-    target_line_idx = -1
-    target_line_rect = None
-    header_size = 12.0
-
-    for idx, line in enumerate(all_lines):
-        norm = _normalize_header(line["text"])
+    # ── Find the header line ────────────────────────────────────────────
+    header_idx = -1
+    header_size = 0.0
+    for idx, ln in enumerate(all_lines):
+        norm = _normalize_header(ln["text"])
         if not norm:
             continue
-        # Direct match or substring in short line (< 35 chars)
         if norm in headers or (len(norm) < 35 and any(h in norm for h in headers)):
-            target_line_idx = idx
-            target_line_rect = line["bbox"]
-            header_size = line["max_size"]
+            header_idx = idx
+            header_size = ln["max_size"]
             break
 
-    if target_line_idx == -1 or not target_line_rect:
+    if header_idx == -1:
         return None
 
-    y_top = target_line_rect[3] + 2  # start immediately below header
+    header_line = all_lines[header_idx]
+    header_bbox = header_line["bbox"]
+    y_top = header_bbox[1]
 
-    # Find the next section boundary
-    y_bottom = page.rect.height - 36
-    for idx in range(target_line_idx + 1, len(all_lines)):
-        line = all_lines[idx]
-        norm = _normalize_header(line["text"])
+    # Profile the header style from its first non-empty span
+    header_span = next((s for s in header_line["spans"] if s.get("text", "").strip()), header_line["spans"][0])
+    header_style = _SpanStyle(
+        font_raw=header_span.get("font", "helv"),
+        size=header_span.get("size", 12.0),
+        color=header_span.get("color", 0),
+        x=header_span["bbox"][0],
+        flags=header_span.get("flags", 0),
+    )
+
+    # ── Find the next section header (boundary) ─────────────────────────
+    y_bottom = page.rect.height - 20
+    for idx in range(header_idx + 1, len(all_lines)):
+        ln = all_lines[idx]
+        norm = _normalize_header(ln["text"])
         if not norm:
             continue
-        # If line matches any section header or looks like a major header
-        is_next_header = bool(_ANY_HEADER.match(line["text"])) or (
-            line["max_size"] >= header_size - 1.0 and len(line["text"].split()) <= 4 and line["bbox"][1] > y_top + 10
+        is_next = bool(_ANY_HEADER.match(ln["text"])) or (
+            ln["max_size"] >= header_size - 1.0
+            and len(ln["text"].split()) <= 4
+            and ln["bbox"][1] > y_top + 15
         )
-        if is_next_header:
-            y_bottom = line["bbox"][1] - 4
+        if is_next:
+            y_bottom = ln["bbox"][1] - 2
             break
 
     if y_bottom <= y_top + 10:
         return None
 
-    # Sample body font size from spans currently in that y-range
-    body_sizes = []
-    x_coords = []
-    for idx in range(target_line_idx + 1, len(all_lines)):
-        line = all_lines[idx]
-        if line["bbox"][1] >= y_bottom:
+    # ── Collect all body lines (between header and next section) ────────
+    body_lines = []
+    for idx in range(header_idx + 1, len(all_lines)):
+        ln = all_lines[idx]
+        if ln["bbox"][1] >= y_bottom:
             break
-        for span in line["spans"]:
-            if span.get("text", "").strip():
-                body_sizes.append(span.get("size", 10.0))
-                x_coords.append(span["bbox"][0])
+        body_lines.append(ln)
 
-    body_size = (sum(body_sizes) / len(body_sizes)) if body_sizes else 9.5
-    body_size = max(8.5, min(11.5, body_size))
+    if not body_lines:
+        return None
 
-    x_left = min(x_coords) if x_coords else (page.rect.x0 + 36)
-    x_right = page.rect.width - 36
+    # ── Classify each body line as sub-header vs bullet vs plain text ───
+    # Strategy: collect all spans, find the dominant body font/size,
+    # then anything with a different (larger/bold) font is a sub-header.
 
-    content_rect = fitz.Rect(max(page.rect.x0 + 20, x_left - 4), y_top, min(page.rect.width - 20, x_right + 4), y_bottom)
+    # Gather all body spans
+    all_body_spans = []
+    for ln in body_lines:
+        for s in ln["spans"]:
+            if s.get("text", "").strip():
+                all_body_spans.append(s)
+
+    # Find dominant body font + size by character count
+    font_size_counts: dict[tuple[str, float], int] = {}
+    for s in all_body_spans:
+        key = (s.get("font", ""), round(s.get("size", 10), 1))
+        font_size_counts[key] = font_size_counts.get(key, 0) + len(s.get("text", ""))
+
+    dominant_key = max(font_size_counts, key=font_size_counts.get) if font_size_counts else ("helv", 10.0)
+    dominant_font, dominant_size = dominant_key
+
+    # Body style: from spans matching the dominant font/size
+    body_spans = [s for s in all_body_spans
+                  if s.get("font", "") == dominant_font and abs(s.get("size", 10) - dominant_size) < 0.5]
+    body_color = body_spans[0].get("color", 0) if body_spans else 0
+    body_x_positions = sorted(s["bbox"][0] for s in body_spans)
+    body_x = body_x_positions[0] if body_x_positions else 50.0
+
+    body_style = _SpanStyle(
+        font_raw=dominant_font,
+        size=dominant_size,
+        color=body_color,
+        x=body_x,
+        flags=body_spans[0].get("flags", 0) if body_spans else 0,
+    )
+
+    # Sub-header style: spans that are NOT the dominant font/size (different font OR bigger size OR bold flag)
+    subheader_spans = [s for s in all_body_spans
+                       if s.get("font", "") != dominant_font or abs(s.get("size", 10) - dominant_size) >= 0.5
+                       or (s.get("flags", 0) & (1 << 4) and not (body_spans[0].get("flags", 0) & (1 << 4)) if body_spans else False)]
+
+    # If no distinct sub-header style, check if any lines look like project titles
+    # (lines at body_x that start a named project — short, not a bullet)
+    if not subheader_spans:
+        for ln in body_lines:
+            text = ln["text"]
+            # Sub-header heuristic: line at x ≈ body_x, short-ish, contains '|' or ':' (common in project titles)
+            if ("|" in text or ":" in text) and len(text.split()) <= 15:
+                for s in ln["spans"]:
+                    if s.get("text", "").strip():
+                        subheader_spans.append(s)
+
+    if subheader_spans:
+        # Use the first sub-header span as the style reference
+        sh_ref = subheader_spans[0]
+        subheader_style = _SpanStyle(
+            font_raw=sh_ref.get("font", dominant_font),
+            size=sh_ref.get("size", dominant_size),
+            color=sh_ref.get("color", body_color),
+            x=sh_ref["bbox"][0],
+            flags=sh_ref.get("flags", 0),
+        )
+    else:
+        # Fallback: same as body but try bold variant
+        bold_name = dominant_font
+        if "bold" not in dominant_font.lower():
+            bold_name = re.sub(r"^([A-Z]{6}\+)?", r"\1", dominant_font).replace("-", "-Bold") if "-" in dominant_font else dominant_font + "-Bold"
+        subheader_style = _SpanStyle(
+            font_raw=bold_name,
+            size=dominant_size,
+            color=body_color,
+            x=body_x,
+            flags=body_spans[0].get("flags", 0) | (1 << 4) if body_spans else (1 << 4),
+        )
+
+    # ── Detect bullet character and positions ───────────────────────────
+    bullet_char = "•"
+    bullet_x = body_x
+    text_x = body_x + 10  # default indent for text after bullet
+
+    for ln in body_lines:
+        for s in ln["spans"]:
+            txt = s.get("text", "").strip()
+            if txt in ("•", "–", "-", "▪", "►", "●", "◦", "‣", "·"):
+                bullet_char = txt
+                bullet_x = s["bbox"][0]
+                # Find the next span on the same line for text_x
+                spans_on_line = [sp for sp in ln["spans"] if sp.get("text", "").strip() and sp["bbox"][0] > s["bbox"][0]]
+                if spans_on_line:
+                    text_x = min(sp["bbox"][0] for sp in spans_on_line)
+                break
+        else:
+            continue
+        break
+
+    # If no bullet character found, derive text_x from indented lines
+    unique_xs = sorted(set(round(x, 1) for x in body_x_positions))
+    if len(unique_xs) > 1 and text_x == body_x + 10:
+        text_x = unique_xs[1]
+
+    # ── Line spacing ────────────────────────────────────────────────────
+    body_ys = sorted(set(
+        round(s["origin"][1], 1) for s in body_spans if "origin" in s
+    ))
+    if len(body_ys) >= 2:
+        gaps = [body_ys[i+1] - body_ys[i] for i in range(len(body_ys) - 1) if body_ys[i+1] - body_ys[i] > 1]
+        line_spacing = (sum(gaps) / len(gaps)) if gaps else dominant_size * 1.35
+    else:
+        line_spacing = dominant_size * 1.35
+
+    y_body_start = header_bbox[3] + (line_spacing * 0.4)
+
     return {
-        "content_rect": content_rect,
-        "body_size": body_size,
+        "y_top": y_top,
+        "y_body_start": y_body_start,
+        "y_bottom": y_bottom,
+        "header_style": header_style,
+        "subheader_style": subheader_style,
+        "body_style": body_style,
+        "bullet_char": bullet_char,
+        "bullet_x": bullet_x,
+        "text_x": text_x,
+        "line_spacing": line_spacing,
     }
 
 
-def _format_for_pdf_insert(text: str) -> str:
-    """Format markdown text for clean PDF insertion (normalize bullets, indents, clean dashes)."""
-    lines = []
-    for line in text.splitlines():
-        stripped = line.strip()
+# ── Content stream editing ──────────────────────────────────────────────────
+
+def _delete_y_range_from_stream(stream: str, page_height: float, y_top: float, y_bottom: float) -> str:
+    """Remove q BT...ET Q blocks whose TD y falls in [y_top, y_bottom] (PyMuPDF top-down coords).
+
+    Preserves ruling lines, graphics, and all non-text operators.
+    """
+    pdf_y_hi = page_height - y_top + 2
+    pdf_y_lo = page_height - y_bottom - 2
+
+    block_re = re.compile(r"q\s+BT.*?ET\s+Q", re.DOTALL)
+    td_re = re.compile(r"([\d.e+-]+)\s+([\d.e+-]+)\s+TD")
+
+    def keep(m):
+        td = td_re.search(m.group(0))
+        if td:
+            td_y = float(td.group(2))
+            return not (pdf_y_lo <= td_y <= pdf_y_hi)
+        return True
+
+    return block_re.sub(lambda m: m.group(0) if keep(m) else "", stream)
+
+
+# ── Write replacement text using profiled styles ────────────────────────────
+
+def _insert_section_text(page, profile: dict, text: str):
+    """Write replacement text line-by-line, using the individually-profiled styles for each element type."""
+    import textwrap
+
+    sub = profile["subheader_style"]
+    body = profile["body_style"]
+    bullet_char = profile["bullet_char"]
+    bullet_x = profile["bullet_x"]
+    text_x = profile["text_x"]
+    line_spacing = profile["line_spacing"]
+
+    current_y = profile["y_body_start"]
+    y_limit = profile["y_bottom"]
+
+    right_margin = page.rect.width - 36
+    body_avail = right_margin - body.x
+    body_char_w = body.size * 0.52
+    body_wrap = max(20, int(body_avail / body_char_w))
+
+    bullet_avail = right_margin - text_x
+    bullet_wrap = max(15, int(bullet_avail / body_char_w))
+
+    for raw_line in text.splitlines():
+        stripped = raw_line.strip()
+        if current_y > y_limit:
+            break
+
         if not stripped:
-            lines.append("")
+            current_y += line_spacing * 0.5
             continue
-        # Convert markdown headers inside section
-        if stripped.startswith("### "):
-            lines.append("\n" + stripped[4:].strip())
-        elif stripped.startswith("## ") or stripped.startswith("# "):
-            lines.append("\n" + stripped.lstrip("# ").strip())
-        elif stripped.startswith(("- ", "* ", "• ")):
+
+        # ── Sub-header (project title) ──────────────────────────────────
+        is_subheader = stripped.startswith(("### ", "## "))
+        if is_subheader:
+            label = stripped.lstrip("#").strip().strip("*")
+            page.insert_text(
+                (sub.x, current_y), label,
+                fontsize=sub.size, fontname=sub.font, color=sub.color,
+            )
+            current_y += line_spacing
+            continue
+
+        # Also detect "ProjectName | Tech, Stack" pattern (no markdown prefix)
+        if "|" in stripped and len(stripped.split()) <= 15 and not stripped.startswith(("- ", "• ", "* ", "– ")):
+            page.insert_text(
+                (sub.x, current_y), stripped,
+                fontsize=sub.size, fontname=sub.font, color=sub.color,
+            )
+            current_y += line_spacing
+            continue
+
+        # ── Bullet line ─────────────────────────────────────────────────
+        is_bullet = stripped.startswith(("- ", "• ", "* ", "– ", "▪ "))
+        if is_bullet:
             bullet_content = stripped[2:].strip()
-            lines.append(f"  •  {bullet_content}")
-        else:
-            lines.append(stripped)
-    return "\n".join(lines).strip()
+
+            # Write bullet character at the original bullet x-position
+            page.insert_text(
+                (bullet_x, current_y), bullet_char,
+                fontsize=body.size, fontname=body.font, color=body.color,
+            )
+
+            # Word-wrap and write content at the original text indentation
+            for wrapped in textwrap.wrap(bullet_content, width=bullet_wrap):
+                if current_y > y_limit:
+                    break
+                page.insert_text(
+                    (text_x, current_y), wrapped,
+                    fontsize=body.size, fontname=body.font, color=body.color,
+                )
+                current_y += line_spacing
+            continue
+
+        # ── Regular text line ───────────────────────────────────────────
+        for wrapped in textwrap.wrap(stripped, width=body_wrap):
+            if current_y > y_limit:
+                break
+            page.insert_text(
+                (body.x, current_y), wrapped,
+                fontsize=body.size, fontname=body.font, color=body.color,
+            )
+            current_y += line_spacing
 
 
 # ── Public API ──────────────────────────────────────────────────────────────
@@ -187,10 +473,11 @@ def rewrite_pdf_layout(
     original_pdf_bytes: bytes,
     rewritten_text: str,
 ) -> bytes:
-    """Replace Skills and Projects sections in the original PDF with rewritten text.
+    """Replace Skills and Projects sections in the original PDF in-place.
 
-    Preserves the entire original PDF (header, contact info, experience, education,
-    styling, margins, lines) and edits ONLY the Skills and Projects content in place.
+    1. Profiles each section to extract individual styles for headers, sub-headers, and body text.
+    2. Crops out the body text rectangle using content stream editing (preserves ruling lines, graphics).
+    3. Writes replacement text back at the original positions using the profiled styles.
     """
     doc = fitz.open(stream=original_pdf_bytes, filetype="pdf")
     if len(doc) == 0:
@@ -198,51 +485,40 @@ def rewrite_pdf_layout(
 
     skills_text, projects_text = _split_rewritten_sections(rewritten_text)
 
-    sections_to_replace = [
+    for headers, replacement_text in [
         (SKILLS_HEADERS, skills_text),
         (PROJECTS_HEADERS, projects_text),
-    ]
-
-    for headers, replacement_text in sections_to_replace:
+    ]:
         if not replacement_text.strip():
             continue
 
         for page in doc:
-            region = _locate_section_region(page, headers)
-            if not region:
+            profile = _profile_section(page, headers)
+            if not profile:
                 continue
 
-            rect = region["content_rect"]
-            body_size = region.get("body_size", 10.0)
+            # 1) Read the raw content stream
+            page.clean_contents()
+            xref = page.get_contents()[0]
+            stream = doc.xref_stream(xref).decode("latin-1")
 
-            # 1. Redact the old content area (removes all text and paths, fills background with white)
-            page.add_redact_annot(rect, fill=(1, 1, 1))
-            page.apply_redactions()
+            # 2) Crop out ONLY the body text (below header, above next section)
+            cleaned = _delete_y_range_from_stream(
+                stream, page.rect.height,
+                profile["y_body_start"] - 2,
+                profile["y_bottom"],
+            )
+            doc.update_stream(xref, cleaned.encode("latin-1"))
 
-            # 2. Format the replacement text cleanly
-            formatted_text = _format_for_pdf_insert(replacement_text)
+            # 3) Write replacement text using the profiled styles
+            _insert_section_text(page, profile, replacement_text)
 
-            # 3. Insert into the exact bounding box at the original font size
-            # If text is slightly long, shrink by 0.5pt until it fits cleanly without overflow
-            font_size = body_size
-            for _ in range(6):
-                rc = page.insert_textbox(
-                    rect,
-                    formatted_text,
-                    fontsize=font_size,
-                    fontname="helv",
-                    color=(0.1, 0.1, 0.1),
-                    align=fitz.TEXT_ALIGN_LEFT,
-                )
-                if rc >= 0:
-                    break
-                font_size -= 0.5
-
-            break  # section found and replaced, advance to next section
+            break  # section found on this page, move to next section
 
     output_bytes = doc.tobytes()
     doc.close()
     return output_bytes
+
 
 
 def replace_sections_in_text(original_text: str, new_skills: str, new_projects: str) -> str:
