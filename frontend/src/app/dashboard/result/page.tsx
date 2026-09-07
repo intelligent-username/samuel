@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function RootResultsPage() {
+export default function DashboardResultIndexPage() {
   redirect("/history");
 }

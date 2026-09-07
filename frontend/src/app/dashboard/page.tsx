@@ -23,6 +23,22 @@ export default function DashboardPage() {
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [hiddenResumeIds, setHiddenResumeIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const savedHidden = localStorage.getItem("samuel_hidden_resume_ids");
+      if (savedHidden) {
+        setHiddenResumeIds(new Set(JSON.parse(savedHidden)));
+      }
+    } catch {}
+  }, []);
+
+  const updateHiddenResumeIds = (newSet: Set<string>) => {
+    setHiddenResumeIds(newSet);
+    try {
+      localStorage.setItem("samuel_hidden_resume_ids", JSON.stringify(Array.from(newSet)));
+    } catch {}
+  };
   const [selectedResumeId, setSelectedResumeId] = useState("");
   const [jobDesc, setJobDesc] = useState("");
   const [hasKey, setHasKey] = useState(false);
@@ -95,7 +111,19 @@ export default function DashboardPage() {
         });
       const combined = [...res, ...inMemoryGenResumes];
       setResumes(combined);
-      if (combined.length > 0) setSelectedResumeId(combined[0].id);
+
+      let savedHiddenSet = new Set<string>();
+      try {
+        const saved = localStorage.getItem("samuel_hidden_resume_ids");
+        if (saved) savedHiddenSet = new Set(JSON.parse(saved));
+      } catch {}
+
+      const available = combined.filter((item) => !savedHiddenSet.has(item.id));
+      if (available.length > 0) {
+        setSelectedResumeId(available[0].id);
+      } else if (combined.length > 0) {
+        setSelectedResumeId(combined[0].id);
+      }
       setHasKey(k.has_key);
       setEnvConfigured(k.env_configured);
       if (u) setUsername(u.github_username);
@@ -111,9 +139,10 @@ export default function DashboardPage() {
 
   const handleRemoveResumeOption = (resume: Resume, e: React.MouseEvent) => {
     e.stopPropagation();
-    setHiddenResumeIds((prev) => new Set([...prev, resume.id]));
+    const updated = new Set([...hiddenResumeIds, resume.id]);
+    updateHiddenResumeIds(updated);
     if (selectedResumeId === resume.id) {
-      const remaining = visibleResumes.filter((r) => r.id !== resume.id);
+      const remaining = resumes.filter((r) => !updated.has(r.id));
       setSelectedResumeId(remaining.length > 0 ? remaining[0].id : "");
     }
   };

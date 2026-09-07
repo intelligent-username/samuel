@@ -159,7 +159,7 @@ export default function DashboardSidebar({
           <Borromean3DViewer width={20} height={20} interactive={false} style={{ display: "inline-flex", flexShrink: 0 }} />
           <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Samuel</span>
         </div>
-        <Link href="/dashboard/history" style={{ fontSize: "0.75rem", color: "var(--color-primary)", textDecoration: "underline" }}>
+        <Link href="/history" style={{ fontSize: "0.75rem", color: "var(--color-primary)", textDecoration: "underline" }}>
           History
         </Link>
       </div>

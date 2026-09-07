@@ -226,8 +226,8 @@ export default function ResumeUploadSection({
                         <button
                           type="button"
                           onClick={(e) => onRemoveResume(r, e)}
-                          title="Remove option from dropdown"
-                          aria-label={`Remove ${r.original_filename} from dropdown`}
+                          title="Don't show this here"
+                          aria-label={`Don't show ${r.original_filename} here`}
                           style={{
                             width: "22px",
                             height: "22px",
