@@ -42,12 +42,13 @@ docker compose watch            # Hot-reload mode for development
 
 ## Usage Flow
 
-1. Open http://localhost:3000 → **Log in with GitHub**
-2. In dashboard, click **Sync Repos** to fetch your public repos
-3. Set your **OpenRouter API key**
-4. Upload your current resume as **PDF**
-5. Paste a **job description**
-6. Click **Generate** → watch the skill chain run live → preview and save the rewritten resume as PDF
+1. Open http://localhost:3000 → *Log in with GitHub*.
+2. In dashboard, click `Sync Repos` to fetch your public repos.
+3. Set your `OpenRouter API key`.
+4. Upload your current resume as **PDF**.
+5. Paste a job description.
+6. Click `Generate`.
+7. Wait for the preview and save the rewritten resume as a PDF.
 
 ## Development (without Docker)
 

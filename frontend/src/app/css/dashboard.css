@@ -15,7 +15,7 @@
   }
 }
 
-/* ─── Floating Sign Out Button ───────────────────────────────── */
+/* ─── Floating / Profile Sign Out Button ─────────────────────── */
 .username-container {
   display: inline-flex;
   align-items: center;
@@ -31,6 +31,14 @@
   opacity: 1;
   transform: translateX(0);
   pointer-events: auto;
+}
+
+.signout-btn {
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.signout-btn:hover:not(:disabled) {
+  color: var(--color-destructive) !important;
+  background-color: rgba(153, 27, 27, 0.12) !important;
 }
 
 /* ─── Page Shell (Sidebar + Main layout) ─────────────────────── */

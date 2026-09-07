@@ -61,7 +61,7 @@ export default function DashboardSidebar({
                 )}
                 <span style={{ fontWeight: 600 }}>{username}</span>
               </div>
-              <button onClick={onLogout} className="btn btn-ghost btn-xs" style={{ fontSize: "0.72rem", padding: "0.25rem 0.6rem" }}>
+              <button onClick={onLogout} className="btn btn-ghost btn-xs signout-btn" style={{ fontSize: "0.72rem", padding: "0.25rem 0.6rem" }}>
                 Sign out
               </button>
             </div>

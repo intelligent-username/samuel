@@ -18,7 +18,7 @@ export default function Home() {
       .then(() => router.push("/dashboard"))
       .catch(() => setChecking(false));
     getLoginUrl()
-      .then((data) => setLoginUrl(data.url))
+      .then((url) => setLoginUrl(url))
       .catch(() => {});
   }, [router]);
 
