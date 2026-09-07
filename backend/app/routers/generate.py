@@ -65,7 +65,10 @@ async def start_generation(
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
 
-    # OpenRouter key check bypassed while testing section cropping (no LLM calls made)
+    import os
+    env_key = getattr(settings, "openrouter_api_key", "") or os.environ.get("OPENROUTER_API_KEY", "")
+    if not env_key and not user.openrouter_api_key:
+        raise HTTPException(status_code=400, detail="OpenRouter API key not configured")
 
     # Defense in depth — even if schema is bypassed, enforce 24000
     jd_text = body.job_description.strip()
@@ -311,26 +314,25 @@ async def download_pdf(
     if not generation.rewritten_resume_text:
         raise HTTPException(status_code=400, detail="No rewritten resume available")
 
-    # Crop from original resume to ensure latest cropping boundaries (preserves ruling lines)
-    if generation.resume and generation.resume.pdf_content:
-        from app.services.pdf_extractor import crop_sections_blank
+    if generation.pdf_content:
+        pdf_bytes = generation.pdf_content
+    elif generation.resume and generation.resume.pdf_content:
+        from app.services.pdf_extractor import rewrite_pdf_layout
         try:
-            pdf_bytes = crop_sections_blank(generation.resume.pdf_content)
+            pdf_bytes = rewrite_pdf_layout(generation.resume.pdf_content, generation.rewritten_resume_text or "")
         except Exception:
             pdf_bytes = generation.resume.pdf_content
         generation.pdf_content = pdf_bytes
         await db.commit()
-    elif generation.pdf_content:
-        pdf_bytes = generation.pdf_content
     else:
         # Fallback to local asset if DB record lacks binary content
         from pathlib import Path
         fallback_path = Path(__file__).parent.parent / "assets" / "resume.pdf"
         if fallback_path.exists():
-            from app.services.pdf_extractor import crop_sections_blank
+            from app.services.pdf_extractor import rewrite_pdf_layout
             raw_pdf = fallback_path.read_bytes()
             try:
-                pdf_bytes = crop_sections_blank(raw_pdf)
+                pdf_bytes = rewrite_pdf_layout(raw_pdf, generation.rewritten_resume_text or "")
             except Exception:
                 pdf_bytes = raw_pdf
             generation.pdf_content = pdf_bytes
