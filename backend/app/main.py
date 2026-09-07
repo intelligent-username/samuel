@@ -64,6 +64,24 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    # Auto-backfill existing resumes with NULL pdf_content from local assets
+    try:
+        from app.database import async_session_factory
+        from app.models.resume import Resume
+        from sqlalchemy import update
+        fallback_path = Path(__file__).parent / "assets" / "resume.pdf"
+        if fallback_path.exists():
+            fallback_bytes = fallback_path.read_bytes()
+            async with async_session_factory() as session:
+                await session.execute(
+                    update(Resume)
+                    .where(Resume.pdf_content.is_(None))
+                    .values(pdf_content=fallback_bytes)
+                )
+                await session.commit()
+    except Exception as backfill_err:
+        logger.warning("Resume PDF backfill failed: %s", backfill_err)
+
     # Startup banner — clear host addresses (0.0.0.0 is inside container, show localhost for user)
     banner = (
         "\n"

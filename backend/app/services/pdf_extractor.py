@@ -6,15 +6,18 @@ import fitz  # PyMuPDF
 SKILLS_HEADERS = {
     "skill", "skills",
     "technical skills", "technical expertise",
-    "core competencies",
-    "key skills",
+    "core competencies", "core skills",
+    "key skills", "skills & tools", "skills & abilities",
+    "technologies", "technical proficiencies", "programming skills",
+    "skills summary",
 }
 
 PROJECTS_HEADERS = {
     "project", "projects",
     "personal projects", "selected projects",
-    "side projects",
-    "open source", "open-source",
+    "side projects", "academic projects", "key projects",
+    "open source", "open-source", "project experience",
+    "notable projects", "recent projects",
 }
 
 # Any uppercase/title-case line that could be the next section boundary
@@ -468,6 +471,170 @@ def _insert_section_text(page, profile: dict, text: str):
 
 
 # ── Public API ──────────────────────────────────────────────────────────────
+
+def _find_section_y_bounds(page, headers: set[str]) -> tuple[float, float] | None:
+    """Find (y_body_start, y_bottom) bounding the body of a section on a page."""
+    text_dict = page.get_text("dict")
+    all_lines = []
+    for block in text_dict.get("blocks", []):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", []):
+            line_text = "".join(s.get("text", "") for s in line.get("spans", [])).strip()
+            if not line_text:
+                continue
+            max_size = max((s.get("size", 0) for s in line.get("spans", [])), default=0)
+            all_lines.append({
+                "text": line_text,
+                "bbox": line.get("bbox"),
+                "max_size": max_size,
+            })
+
+    if not all_lines:
+        return None
+
+    # 1. Find header line
+    header_idx = -1
+    header_size = 0.0
+    for idx, ln in enumerate(all_lines):
+        norm = _normalize_header(ln["text"])
+        if not norm:
+            continue
+        if norm in headers or (len(norm) < 40 and any(h in norm for h in headers)):
+            header_idx = idx
+            header_size = ln["max_size"]
+            break
+
+    if header_idx == -1:
+        return None
+
+    header_line = all_lines[header_idx]
+    y_top = header_line["bbox"][1]
+    header_bottom = header_line["bbox"][3]
+
+    # Detect horizontal ruling line under the header to ensure we NEVER crop it out
+    line_bottom = header_bottom
+    try:
+        drawings = page.get_drawings()
+        for d in drawings:
+            r = d.get("rect")
+            if r and abs(r.height) <= 6.0 and r.width > 30:
+                # Ruling line sits directly beneath the header text
+                if header_line["bbox"][1] <= r.y0 <= header_bottom + 25.0:
+                    stroke_w = d.get("width", 1.0) or 1.0
+                    r_bottom = max(r.y1, r.y0) + stroke_w
+                    if r_bottom > line_bottom:
+                        line_bottom = r_bottom
+    except Exception:
+        pass
+
+    # Body starts strictly below the ruling line and below the header
+    first_body_top = None
+    if header_idx + 1 < len(all_lines):
+        first_body_top = all_lines[header_idx + 1]["bbox"][1]
+
+    if first_body_top is not None and first_body_top > line_bottom + 1.0:
+        y_body_start = max(line_bottom + 1.0, (line_bottom + first_body_top) / 2.0)
+    else:
+        y_body_start = line_bottom + 2.0
+
+    # 2. Find next section boundary
+    y_bottom = page.rect.height - 20.0
+    for idx in range(header_idx + 1, len(all_lines)):
+        ln = all_lines[idx]
+        norm = _normalize_header(ln["text"])
+        if not norm:
+            continue
+        is_next = bool(_ANY_HEADER.match(ln["text"])) or (
+            ln["max_size"] >= header_size - 1.0
+            and len(ln["text"].split()) <= 4
+            and ln["bbox"][1] > y_top + 15.0
+        )
+        if is_next:
+            y_bottom = ln["bbox"][1] - 2.0
+            break
+
+    if y_bottom <= y_body_start:
+        return None
+
+    return (y_body_start, y_bottom)
+
+
+def crop_sections_blank(original_pdf_bytes: bytes) -> bytes:
+    """Crop out Skills and Projects sections in the original PDF and replace them with blank white.
+
+    1. Saves all vector ruling lines under headers before blanking.
+    2. Blanks out the target section bodies between header ruling line and next header.
+    3. Re-draws the ruling lines to guarantee they are never removed or obscured.
+    """
+    if not original_pdf_bytes:
+        return b""
+
+    doc = fitz.open(stream=original_pdf_bytes, filetype="pdf")
+    if len(doc) == 0:
+        return original_pdf_bytes
+
+    for page in doc:
+        # Collect all horizontal ruling lines on the page so we can restore any affected ones
+        saved_lines = []
+        try:
+            for d in page.get_drawings():
+                r = d.get("rect")
+                if r and abs(r.height) <= 6.0 and r.width > 30:
+                    for it in d.get("items", []):
+                        if it[0] == "l":
+                            saved_lines.append({
+                                "type": "line",
+                                "p1": it[1],
+                                "p2": it[2],
+                                "color": d.get("color", (0, 0, 0)),
+                                "width": d.get("width", 0.5),
+                            })
+                        elif it[0] == "re":
+                            saved_lines.append({
+                                "type": "rect",
+                                "rect": it[1],
+                                "color": d.get("fill") or d.get("color", (0, 0, 0)),
+                            })
+        except Exception:
+            pass
+
+        for headers in (SKILLS_HEADERS, PROJECTS_HEADERS):
+            bounds = _find_section_y_bounds(page, headers)
+            if not bounds:
+                continue
+
+            y_start, y_end = bounds
+            rect = fitz.Rect(0, y_start, page.rect.width, y_end)
+
+            # PyMuPDF native redaction purges body text/graphics
+            try:
+                page.add_redact_annot(rect, fill=(1, 1, 1))
+                page.apply_redactions()
+            except Exception:
+                pass
+
+            # Fill white to ensure clean background
+            try:
+                page.draw_rect(rect, color=(1, 1, 1), fill=(1, 1, 1), width=0)
+            except Exception:
+                pass
+
+        # Re-draw all saved ruling lines to ensure they remain 100% visible and untouched
+        for item in saved_lines:
+            try:
+                if item["type"] == "line":
+                    page.draw_line(item["p1"], item["p2"], color=item["color"], width=item["width"])
+                elif item["type"] == "rect":
+                    page.draw_rect(item["rect"], color=item["color"], fill=item["color"], width=0)
+            except Exception:
+                pass
+
+    output_bytes = doc.tobytes()
+    doc.close()
+    return output_bytes
+
+
 
 def rewrite_pdf_layout(
     original_pdf_bytes: bytes,

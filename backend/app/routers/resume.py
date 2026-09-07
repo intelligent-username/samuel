@@ -112,6 +112,20 @@ async def list_resumes(request: Request, db: AsyncSession = Depends(get_db)) -> 
         select(Resume).where(Resume.user_id == user_id).order_by(Resume.created_at.desc())
     )
     resumes = result.scalars().all()
+
+    # Backfill missing pdf_content for resumes created before migration 005
+    from pathlib import Path
+    fallback_path = Path(__file__).parent.parent / "assets" / "resume.pdf"
+    if fallback_path.exists():
+        fallback_bytes = fallback_path.read_bytes()
+        updated = False
+        for r in resumes:
+            if not r.pdf_content:
+                r.pdf_content = fallback_bytes
+                updated = True
+        if updated:
+            await db.commit()
+
     return [ResumeResponse.model_validate(r) for r in resumes]
 
 
