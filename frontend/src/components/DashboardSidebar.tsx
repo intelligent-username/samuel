@@ -57,7 +57,7 @@ export default function DashboardSidebar({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
               <div className="nm-card-sm" style={{ padding: "0.3rem 0.7rem", display: "inline-flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8rem" }}>
                 {avatarUrl && (
-                  <img src={avatarUrl} width={26} height={26} style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} alt="" />
+                  <img src={avatarUrl} width={26} height={26} style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} alt={`${username}'s avatar`} />
                 )}
                 <span style={{ fontWeight: 600 }}>{username}</span>
               </div>
