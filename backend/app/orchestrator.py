@@ -12,7 +12,7 @@ from app.config import settings
 from app.models.generation import Generation
 from app.models.repository import Repository
 from app.models.user import User
-from app.skills.ats_checker import ATSCheckerSkill
+from app.ats import ATS
 from app.skills.jd_parser import JDParserSkill
 from app.skills.project_matcher import ProjectMatcherSkill
 from app.skills.resume_writer import ResumeWriterSkill
@@ -97,12 +97,19 @@ class Orchestrator:
         full_rewritten_text = replace_sections_in_text(original_text, new_skills, new_projects)
         yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": "Skills and Projects rewritten to match job profile"})}
 
-        # Step 4: ATS Checker (sends ONLY the rewritten resume text and extracted keywords)
-        yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Running ATS compatibility audit..."})}
-        ats_checker = ATSCheckerSkill()
-        keywords = getattr(jd_requirements, "keywords", []) or []
-        ats_report = await ats_checker.run(full_rewritten_text, keywords, self.llm, self.debug_dir)
-        ats_score = ats_report.get("score", 85) if isinstance(ats_report, dict) else 85
+        # Step 4: Deterministic Algorithmic ATS Evaluation
+        yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Running deterministic ATS compatibility audit..."})}
+        ats_engine = ATS()
+        ats_report = ats_engine.evaluate(
+            resume_text=full_rewritten_text,
+            context={
+                "keywords": getattr(jd_requirements, "keywords", []) or [],
+                "hard_requirements": getattr(jd_requirements, "hard_requirements", []) or [],
+                "preferred_skills": getattr(jd_requirements, "preferred_skills", []) or [],
+                "job_description_text": generation.job_description_text,
+            },
+        )
+        ats_score = ats_report.get("score", 100)
         yield {"event": "step-done", "data": json.dumps({"step": "ats_checker", "summary": f"ATS Score: {ats_score}/100"})}
 
         # In-place PDF rewrite preserving original fonts, icons, layout, and ruling lines
