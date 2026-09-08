@@ -1,0 +1,21 @@
+{
+  "_comment": "Degraded extractor profiles — TEST-ONLY FIXTURE. Each profile composes independent flag severities. Reuses header_keywords.json for narrow_header_recognition.",
+  "workday_like": {
+    "column_order_scramble": {"enabled": false, "severity": null},
+    "table_dropout": {"enabled": false, "severity": 0.0},
+    "narrow_header_recognition": {"enabled": true, "severity": 0.6},
+    "skills_section_only": {"enabled": true, "severity": null},
+    "narrow_date_format": {"enabled": true, "severity": null},
+    "no_synonym_resolution": {"enabled": false, "severity": null},
+    "character_noise": {"enabled": false, "severity": 0.0}
+  },
+  "legacy_ats_like": {
+    "column_order_scramble": {"enabled": true, "severity": 1.0},
+    "table_dropout": {"enabled": true, "severity": 0.25},
+    "narrow_header_recognition": {"enabled": true, "severity": 0.9},
+    "skills_section_only": {"enabled": true, "severity": null},
+    "narrow_date_format": {"enabled": true, "severity": null},
+    "no_synonym_resolution": {"enabled": true, "severity": null},
+    "character_noise": {"enabled": false, "severity": 0.0}
+  }
+}
