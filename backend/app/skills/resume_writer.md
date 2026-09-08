@@ -29,6 +29,11 @@ Rules:
 ### Ranked GitHub Projects
 {{RANKED_PROJECTS}}
 
+### ATS Feedback (optional)
+{{ATS_FEEDBACK}}
+
+If ATS feedback is provided, use it to prioritize fixes for missing keywords/warnings but DO NOT invent skills; only rephrase/reorder existing skills and projects. If the above ATS feedback section is non-empty, prioritize addressing the listed missing keywords and warnings, but still DO NOT invent skills or experience — only reword/reorder existing content to surface relevant evidence.
+
 ## Output Format
 
 Return JSON with exactly two keys:

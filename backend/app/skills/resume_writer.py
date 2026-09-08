@@ -22,6 +22,7 @@ class ResumeWriterSkill:
         ranked_projects: list[dict],
         llm: LLMClient,
         debug_dir: Path | None = None,
+        ats_feedback: str | None = None,
     ) -> dict:
         """Generate rewritten skills and projects sections optimized for the job.
 
@@ -32,6 +33,7 @@ class ResumeWriterSkill:
             ranked_projects: Ranked repositories from Project Matcher.
             llm: An initialized LLM client.
             debug_dir: Optional directory for debug output.
+            ats_feedback: Optional ATS screening feedback to prioritize fixes.
 
         Returns:
             A dict with 'skills' and 'projects' rewritten strings.
@@ -42,6 +44,7 @@ class ResumeWriterSkill:
             .replace("{{PROJECTS_SECTION}}", projects_section)
             .replace("{{JD_REQUIREMENTS}}", json.dumps(jd_requirements, indent=2))
             .replace("{{RANKED_PROJECTS}}", json.dumps(ranked_projects, indent=2))
+            .replace("{{ATS_FEEDBACK}}", ats_feedback or "")
         )
         result = await llm.complete(prompt, response_model=RewrittenResumeSections)
 
