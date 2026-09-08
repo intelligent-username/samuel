@@ -18,6 +18,7 @@ import HistoryDrawer from "@/components/HistoryDrawer";
 import GenerationProgressCard from "@/components/GenerationProgressCard";
 import ResumePreviewer from "@/components/ResumePreviewer";
 import ResultsActionBar from "@/components/ResultsActionBar";
+import AtsDetailsModal from "@/components/AtsDetailsModal";
 
 export default function ResultsPage() {
   const params = useParams<{ id: string }>();
@@ -47,6 +48,7 @@ export default function ResultsPage() {
 
   const [jdOpen, setJdOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [atsDetailsOpen, setAtsDetailsOpen] = useState(false);
   const [historyGenerations, setHistoryGenerations] = useState<Generation[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingJd, setLoadingJd] = useState(false);
@@ -167,7 +169,8 @@ export default function ResultsPage() {
           />
         )}
 
-        {iterations.length > 0 && (
+        {/* Iterations progress (visible while generating) */}
+        {!done && iterations.length > 0 && (
           <div className="nm-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
             <h4 style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.5rem" }}>Iterations</h4>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.35rem" }}>
@@ -178,15 +181,6 @@ export default function ResultsPage() {
                 </li>
               ))}
             </ul>
-          </div>
-        )}
-
-        {done && exitReason && (
-          <div className="nm-card" style={{ padding: "1rem", marginBottom: "1rem", borderColor: exitReason === "threshold_met" ? "var(--color-success)" : exitReason === "stagnation" ? "#f59e0b" : "var(--color-border)" }}>
-            {exitReason === "threshold_met" && <span>✓ Target met ({atsScore}/{currentThreshold})</span>}
-            {exitReason === "stagnation" && <span>Paused — improvement stalled below 3% for 3 tries (final {atsScore})</span>}
-            {exitReason === "max_iterations" && <span>Reached max tries — final {atsScore}/{currentThreshold}</span>}
-            {exitReason === "single_pass" && null}
           </div>
         )}
 
@@ -233,7 +227,18 @@ export default function ResultsPage() {
               historyOpen={historyOpen}
               onToggleHistory={toggleHistory}
               atsScore={atsScore}
+              onToggleAtsDetails={() => setAtsDetailsOpen((v) => !v)}
               onError={(err) => setDownloadError(err || null)}
+            />
+
+            <AtsDetailsModal
+              open={atsDetailsOpen}
+              onClose={() => setAtsDetailsOpen(false)}
+              atsScore={atsScore}
+              currentThreshold={currentThreshold}
+              atsScores={atsScores}
+              iterations={iterations}
+              exitReason={exitReason}
             />
           </>
         )}

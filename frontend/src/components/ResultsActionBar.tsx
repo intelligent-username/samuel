@@ -11,6 +11,7 @@ interface ResultsActionBarProps {
   historyOpen: boolean;
   onToggleHistory: () => void;
   atsScore: number | null;
+  onToggleAtsDetails?: () => void;
   onError: (msg: string) => void;
 }
 
@@ -22,6 +23,7 @@ export default function ResultsActionBar({
   historyOpen,
   onToggleHistory,
   atsScore,
+  onToggleAtsDetails,
   onError,
 }: ResultsActionBarProps) {
   const [downloading, setDownloading] = useState(false);
@@ -91,33 +93,24 @@ export default function ResultsActionBar({
           }}
         >
           <span className="text-muted text-xs">ATS Score:</span>
-          <span
+          <button
+            type="button"
+            onClick={onToggleAtsDetails}
+            aria-label="View ATS Score Details"
+            title="Click to view ATS score details & iterations"
             className="chip"
             style={{
-              background:
-                atsScore >= 80
-                  ? "rgba(26, 158, 110, 0.15)"
-                  : atsScore > 45
-                  ? "rgba(252, 106, 3, 0.15)"
-                  : "rgba(153, 27, 27, 0.15)",
-              borderColor:
-                atsScore >= 80
-                  ? "var(--color-success)"
-                  : atsScore > 45
-                  ? "var(--color-accent)"
-                  : "var(--color-destructive)",
-              color:
-                atsScore >= 80
-                  ? "var(--color-success)"
-                  : atsScore > 45
-                  ? "var(--color-accent)"
-                  : "var(--color-destructive)",
+              background: "rgba(252, 106, 3, 0.15)",
+              borderColor: "var(--color-accent)",
+              color: "var(--color-accent)",
               fontWeight: 700,
               fontSize: "0.82rem",
+              cursor: onToggleAtsDetails ? "pointer" : "default",
+              transition: "filter 0.15s ease, transform 0.1s ease",
             }}
           >
             {atsScore} / 100
-          </span>
+          </button>
         </div>
       )}
     </div>
