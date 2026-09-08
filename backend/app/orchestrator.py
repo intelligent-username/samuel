@@ -391,12 +391,7 @@ class Orchestrator:
                     pdf_bytes = rewrite_pdf_layout(original_pdf, rewritten_md)
                 except Exception as e:
                     logger.warning("PDF rewrite failed iteration %s: %s", iteration, type(e).__name__)
-                    try:
-                        from app.services.pdf_renderer import render_resume_to_pdf
-
-                        pdf_bytes = render_resume_to_pdf(full_rewritten_text)
-                    except Exception:
-                        pdf_bytes = pdf_bytes
+                    pdf_bytes = original_pdf
             else:
                 try:
                     from app.services.pdf_renderer import render_resume_to_pdf
