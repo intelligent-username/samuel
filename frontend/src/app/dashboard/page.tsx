@@ -13,6 +13,9 @@ import RepoDetailModal from "@/components/RepoDetailModal";
 import DashboardSidebar from "@/components/DashboardSidebar";
 import ResumeUploadSection from "@/components/ResumeUploadSection";
 import JobDescriptionInput from "@/components/JobDescriptionInput";
+import AtsThresholdControl from "@/components/AtsThresholdControl";
+import DashboardHeader from "@/components/DashboardHeader";
+import GenerateAction from "@/components/GenerateAction";
 
 type Message = { text: string; type: "info" | "success" | "error" };
 
@@ -238,13 +241,6 @@ export default function DashboardPage() {
     router.push("/");
   };
 
-  const msgColor =
-    msg?.type === "error"
-      ? "var(--color-destructive)"
-      : msg?.type === "success"
-      ? "var(--color-success)"
-      : "var(--color-primary)";
-
   return (
     <div className="page-shell">
       {selectedRepo && (
@@ -273,12 +269,7 @@ export default function DashboardPage() {
       />
 
       <main className="main-layout">
-        <h1 style={{ fontSize: "2.5rem", fontWeight: 800, textAlign: "center", marginBottom: "0.5rem", letterSpacing: "-0.025em" }}>
-          Samuel: Your Resume Tailor
-        </h1>
-        <p className="text-muted" style={{ textAlign: "center", marginBottom: "3rem", fontSize: "0.9rem" }}>
-          Paste a job description and upload your resume to generate a tailored version.
-        </p>
+        <DashboardHeader />
 
         <div style={{ width: "100%" }} className="dashboard-grid">
           <JobDescriptionInput
@@ -303,146 +294,14 @@ export default function DashboardPage() {
               onRemoveResume={handleRemoveResumeOption}
             />
 
-            <div className="nm-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
-                <label htmlFor="ats-threshold" style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-muted-fg)", display: "inline-flex", alignItems: "center" }}>
-                  Target ATS score
-                </label>
-                <span
-                  className="font-mono"
-                  aria-live="polite"
-                  style={{
-                    fontSize: "0.72rem",
-                    fontWeight: 600,
-                    fontVariantNumeric: "tabular-nums",
-                    letterSpacing: "0.02em",
-                    padding: "0.2rem 0.5rem",
-                    borderRadius: 6,
-                    border: "1px solid var(--color-border)",
-                    background: "var(--color-muted)",
-                    color: atsThreshold < 80 ? "var(--color-muted-fg)" : atsThreshold < 90 ? "var(--color-primary)" : "var(--color-success)",
-                    minWidth: "3.2rem",
-                    textAlign: "center",
-                  }}
-                >
-                  {`${atsThreshold} / 100`}
-                </span>
-              </div>
+            <AtsThresholdControl value={atsThreshold} onValueChange={setAtsThreshold} />
 
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.4rem", minWidth: 0 }}>
-                  <input
-                    id="ats-threshold"
-                    name="ats_threshold"
-                    type="range"
-                    min={70}
-                    max={100}
-                    step={1}
-                    value={atsThreshold}
-                    aria-label="Target ATS score"
-                    aria-describedby="ats-threshold-help"
-                    autoComplete="off"
-                    inputMode="numeric"
-                    onChange={(e) => setAtsThreshold(Math.max(70, Math.min(100, Number(e.target.value))))}
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowUp" || e.key === "ArrowRight") { e.preventDefault(); setAtsThreshold((v) => Math.min(100, v + 1)); }
-                      if (e.key === "ArrowDown" || e.key === "ArrowLeft") { e.preventDefault(); setAtsThreshold((v) => Math.max(70, v - 1)); }
-                    }}
-                    style={{
-                      width: "100%",
-                      accentColor: "var(--color-primary)",
-                      touchAction: "manipulation",
-                      WebkitTapHighlightColor: "transparent",
-                      height: 16,
-                      cursor: "pointer",
-                    }}
-                  />
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", lineHeight: 1, fontVariantNumeric: "tabular-nums" }} className="font-mono text-muted">
-                    <span>70</span><span>75</span><span>80</span><span>85</span><span>90</span><span>95</span><span>100</span>
-                  </div>
-                </div>
-
-                <label htmlFor="ats-threshold-number" className="text-xs" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", clipPath: "inset(50%)", whiteSpace: "nowrap" }}>
-                  Target score number
-                </label>
-                <input
-                  id="ats-threshold-number"
-                  name="ats_threshold_number"
-                  type="number"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  spellCheck={false}
-                  min={70}
-                  max={100}
-                  step={1}
-                  value={atsThreshold}
-                  aria-label="Target ATS score number"
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    if (!Number.isNaN(val)) {
-                      setAtsThreshold(Math.max(70, Math.min(100, val)));
-                    }
-                  }}
-                  onBlur={(e) => {
-                    const n = Number(e.target.value);
-                    if (Number.isNaN(n) || n < 70) setAtsThreshold(70);
-                    else if (n > 100) setAtsThreshold(100);
-                    (e.currentTarget as HTMLInputElement).style.borderColor = "var(--color-border)";
-                  }}
-                  style={{
-                    width: "4rem",
-                    padding: "0.35rem 0.5rem",
-                    borderRadius: 8,
-                    border: "1px solid var(--color-border)",
-                    background: "var(--color-background)",
-                    color: "var(--color-foreground)",
-                    fontFamily: "Fira Code, monospace",
-                    fontSize: "0.85rem",
-                    fontVariantNumeric: "tabular-nums",
-                    textAlign: "center",
-                    outline: "none",
-                    flexShrink: 0,
-                  }}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; }}
-                />
-              </div>
-
-              <div id="ats-threshold-help" style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.72rem", color: "var(--color-muted-fg)", lineHeight: 1.4 }}>
-                <span aria-hidden="true" style={{ width: 12, height: 12, borderRadius: "50%", border: "1px solid var(--color-border)", display: "inline-grid", placeItems: "center", flexShrink: 0, fontSize: 8, lineHeight: 1 }}>i</span>
-                <span className="font-mono" style={{ fontSize: "0.7rem" }}>{atsThreshold < 80 ? "Standard alignment: fast generation." : atsThreshold < 90 ? "High precision: retries if score is low." : "Strict optimization: retries until cap."}</span>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, position: "relative" }}>
-              <button
-                id="generate-btn"
-                onClick={handleGenerate}
-                disabled={generating || overLimit || jdTrimLen < 10}
-                className="btn btn-accent btn-lg"
-              >
-                {generating && <span className="spinner spinner-sm" />}
-                {generating ? "Starting generation..." : "Generate Rewritten Resume"}
-              </button>
-
-              {msg && (
-                <div
-                  className="popover-card"
-                  style={{
-                    top: "calc(100% + 0.75rem)",
-                    left: 0,
-                    right: 0,
-                    padding: "0.75rem 1rem",
-                    borderRadius: "8px",
-                    color: msgColor,
-                    fontSize: "0.875rem",
-                    fontWeight: 500,
-                    zIndex: 10,
-                  }}
-                >
-                  {msg.text}
-                </div>
-              )}
-            </div>
+            <GenerateAction
+              generating={generating}
+              disabled={generating || overLimit || jdTrimLen < 10}
+              onGenerate={handleGenerate}
+              message={msg}
+            />
           </div>
         </div>
       </main>

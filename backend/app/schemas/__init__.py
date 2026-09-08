@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class UserResponse(BaseModel):
@@ -102,6 +102,19 @@ class GenerationResponse(BaseModel):
     iterations: list[dict[str, Any]] | None = None
 
     model_config = {"from_attributes": True, "extra": "forbid"}
+
+    @model_validator(mode="after")
+    def populate_iteration_fallbacks(self) -> "GenerationResponse":
+        if not self.iterations:
+            if self.ats_scores:
+                self.iterations = [{"iteration": idx + 1, "score": s} for idx, s in enumerate(self.ats_scores)]
+            elif self.ats_report and isinstance(self.ats_report, dict) and "score" in self.ats_report:
+                self.iterations = [{"iteration": 1, "score": self.ats_report["score"]}]
+        if not self.ats_scores and self.iterations:
+            self.ats_scores = [it["score"] for it in self.iterations if isinstance(it, dict) and "score" in it]
+        if not self.ats_exit_reason and self.status == "completed":
+            self.ats_exit_reason = "threshold_met" if (self.ats_threshold and self.ats_report and self.ats_report.get("score", 0) >= self.ats_threshold) else "single_pass"
+        return self
 
 
 class JDRequirements(BaseModel):

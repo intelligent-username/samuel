@@ -740,10 +740,10 @@ def crop_sections_blank(original_pdf_bytes: bytes) -> bytes:
             y_start, y_end = bounds
             rect = fitz.Rect(0, y_start, page.rect.width, y_end)
 
-            # PyMuPDF native redaction purges body text/graphics
+            # PyMuPDF native redaction purges body text/graphics completely
             try:
                 page.add_redact_annot(rect, fill=(1, 1, 1))
-                page.apply_redactions()
+                page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
             except Exception:
                 pass
 
@@ -763,7 +763,7 @@ def crop_sections_blank(original_pdf_bytes: bytes) -> bytes:
             except Exception:
                 pass
 
-    output_bytes = doc.tobytes()
+    output_bytes = doc.tobytes(garbage=4, deflate=True, clean=True)
     doc.close()
     return output_bytes
 
@@ -828,10 +828,10 @@ def rewrite_pdf_layout(
             y_start, y_end = bounds
             rect = fitz.Rect(0, y_start, page.rect.width, y_end)
 
-            # PyMuPDF native redaction purges body text/graphics
+            # PyMuPDF native redaction purges body text/graphics completely
             try:
                 page.add_redact_annot(rect, fill=(1, 1, 1))
-                page.apply_redactions()
+                page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
             except Exception:
                 pass
 
@@ -858,7 +858,7 @@ def rewrite_pdf_layout(
             except Exception:
                 pass
 
-    output_bytes = doc.tobytes()
+    output_bytes = doc.tobytes(garbage=4, deflate=True, clean=True)
     doc.close()
     return output_bytes
 

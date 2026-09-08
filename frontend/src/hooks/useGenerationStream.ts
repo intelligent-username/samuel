@@ -27,10 +27,22 @@ export function useGenerationStream(generationId: string) {
         if (!active) return;
         if (gen.title) setGenerationTitle(gen.title);
         if (gen.job_description_text) setJobDescription(gen.job_description_text);
+        if (gen.ats_threshold !== undefined && gen.ats_threshold !== null) setCurrentThreshold(gen.ats_threshold);
+        if (gen.ats_exit_reason) setExitReason(gen.ats_exit_reason);
+        if (gen.ats_scores && gen.ats_scores.length > 0) setAtsScores(gen.ats_scores);
+        if (gen.iterations && gen.iterations.length > 0) {
+          setIterations(gen.iterations);
+        } else if (gen.ats_scores && gen.ats_scores.length > 0) {
+          setIterations(gen.ats_scores.map((score, idx) => ({ iteration: idx + 1, score })));
+        }
         if (gen.status === "completed" && gen.rewritten_resume_text) {
           setRewrittenResume(gen.rewritten_resume_text);
           setDone(true);
-          if (gen.ats_report?.score !== undefined) setAtsScore(gen.ats_report.score);
+          const score = gen.ats_score ?? gen.ats_report?.score;
+          if (score !== undefined && score !== null) {
+            setAtsScore(score);
+            setIterations((prev) => (prev.length > 0 ? prev : [{ iteration: 1, score }]));
+          }
         } else if (gen.status === "failed") {
           setFatalError(gen.error_message || "Generation failed.");
         }
@@ -109,18 +121,28 @@ export function useGenerationStream(generationId: string) {
       const data = parseEventData<{ ats_score?: number; ats_scores?: number[]; exit_reason?: string; iterations?: Array<{ iteration: number; score: number }>; threshold?: number }>(e.data);
       setDone(true);
       if (data.ats_score !== undefined) setAtsScore(data.ats_score);
-      if (data.ats_scores) setAtsScores(data.ats_scores);
+      if (data.ats_scores && data.ats_scores.length > 0) setAtsScores(data.ats_scores);
       if (data.exit_reason) setExitReason(data.exit_reason);
-      if (data.iterations) setIterations(data.iterations);
+      if (data.iterations && data.iterations.length > 0) {
+        setIterations(data.iterations);
+      } else if (data.ats_scores && data.ats_scores.length > 0) {
+        setIterations(data.ats_scores.map((s, idx) => ({ iteration: idx + 1, score: s })));
+      }
+      if (data.threshold !== undefined) setCurrentThreshold(data.threshold);
       fetchGeneration(generationId)
         .then((gen) => {
           if (gen.rewritten_resume_text) setRewrittenResume(gen.rewritten_resume_text);
           if (gen.title) setGenerationTitle(gen.title);
           if (gen.job_description_text) setJobDescription(gen.job_description_text);
-          if ((gen as unknown as { ats_scores?: number[] }).ats_scores) setAtsScores((gen as unknown as { ats_scores: number[] }).ats_scores);
-          if ((gen as unknown as { ats_exit_reason?: string }).ats_exit_reason) setExitReason((gen as unknown as { ats_exit_reason: string }).ats_exit_reason);
-          if ((gen as unknown as { iterations?: Array<{ iteration: number; score: number }> }).iterations) setIterations((gen as unknown as { iterations: Array<{ iteration: number; score: number }> }).iterations);
-          if ((gen as unknown as { ats_threshold?: number }).ats_threshold !== undefined) setCurrentThreshold((gen as unknown as { ats_threshold: number }).ats_threshold);
+          if (gen.ats_scores && gen.ats_scores.length > 0) setAtsScores(gen.ats_scores);
+          if (gen.ats_exit_reason) setExitReason(gen.ats_exit_reason);
+          if (gen.iterations && gen.iterations.length > 0) {
+            setIterations(gen.iterations);
+          } else if (gen.ats_scores && gen.ats_scores.length > 0) {
+            setIterations(gen.ats_scores.map((score, idx) => ({ iteration: idx + 1, score })));
+          }
+          if (gen.ats_threshold !== undefined && gen.ats_threshold !== null) setCurrentThreshold(gen.ats_threshold);
+          if (gen.ats_report?.score !== undefined) setAtsScore(gen.ats_report.score);
         })
         .catch(() => null);
       es.close();

@@ -165,6 +165,9 @@ class Orchestrator:
         generation.rewritten_resume_text = full_rewritten_text
         generation.pdf_content = pdf_bytes
         generation.ats_report = ats_report
+        generation.ats_scores = [ats_score]
+        generation.iterations = [{"iteration": 1, "score": ats_score}]
+        generation.ats_exit_reason = "single_pass"
         generation.status = "completed"
         generation.completed_at = datetime.now(timezone.utc)
         await self.db.commit()
@@ -173,6 +176,9 @@ class Orchestrator:
         yield {"event": "done", "data": json.dumps({
             "generation_id": str(self.generation_id),
             "ats_score": ats_score,
+            "ats_scores": [ats_score],
+            "exit_reason": "single_pass",
+            "iterations": [{"iteration": 1, "score": ats_score}],
             "rewritten_resume": full_rewritten_text,
             "pdf_url": f"/generate/{self.generation_id}/download",
         })}

@@ -34,6 +34,15 @@ export default function AtsDetailsModal({
 
   const targetScore = currentThreshold ?? atsScores[0] ?? 80;
 
+  const displayIterations =
+    iterations && iterations.length > 0
+      ? iterations
+      : atsScores && atsScores.length > 0
+      ? atsScores.map((score, i) => ({ iteration: i + 1, score }))
+      : atsScore !== null
+      ? [{ iteration: 1, score: atsScore }]
+      : [];
+
   return (
     <div
       className="modal-backdrop"
@@ -105,13 +114,13 @@ export default function AtsDetailsModal({
           </div>
         )}
 
-        {iterations.length > 0 ? (
+        {displayIterations.length > 0 ? (
           <div>
             <h4 style={{ fontSize: "0.8rem", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--color-muted-fg)", marginBottom: "0.5rem" }}>
               Iterations
             </h4>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-              {iterations.map((it) => {
+              {displayIterations.map((it) => {
                 const isMet = currentThreshold !== null && it.score >= currentThreshold;
                 return (
                   <li
