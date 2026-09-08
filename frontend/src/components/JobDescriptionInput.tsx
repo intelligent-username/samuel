@@ -1,6 +1,13 @@
 "use client";
 
 import React, { useRef, useEffect, useCallback } from "react";
+import {
+  markdownToHtml,
+  htmlToMarkdown,
+  setCaretToEnd,
+  tryHandleMarkdownShortcut,
+  extractMarkdownFromSelection,
+} from "@/lib/markdown-editor";
 
 interface JobDescriptionInputProps {
   jobDesc: string;
@@ -13,166 +20,6 @@ interface JobDescriptionInputProps {
   jdTrimLen: number;
   charsRemaining: number;
   maxChars: number;
-}
-
-function markdownToHtml(md: string): string {
-  if (!md) return "";
-  const lines = md.split("\n");
-  let html = "";
-  let inUl = false;
-  let inOl = false;
-
-  const formatInline = (text: string) => {
-    let s = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    s = s.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-    s = s.replace(/__(.*?)__/g, "<strong>$1</strong>");
-    s = s.replace(/\*(.*?)\*/g, "<em>$1</em>");
-    s = s.replace(/_(.*?)_/g, "<em>$1</em>");
-    s = s.replace(/`(.*?)`/g, "<code>$1</code>");
-    return s;
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Horizontal rule: ---, ***, ___
-    if (/^(\s*[-*_]\s*){3,}$/.test(line)) {
-      if (inUl) { html += "</ul>"; inUl = false; }
-      if (inOl) { html += "</ol>"; inOl = false; }
-      html += "<hr>";
-      continue;
-    }
-
-    // Heading 4: #### ...
-    if (/^####\s*(.*)/.test(line)) {
-      if (inUl) { html += "</ul>"; inUl = false; }
-      if (inOl) { html += "</ol>"; inOl = false; }
-      const content = line.replace(/^####\s*/, "");
-      html += `<h4>${content ? formatInline(content) : "<br>"}</h4>`;
-      continue;
-    }
-
-    // Heading 3: ### ...
-    if (/^###\s*(.*)/.test(line)) {
-      if (inUl) { html += "</ul>"; inUl = false; }
-      if (inOl) { html += "</ol>"; inOl = false; }
-      const content = line.replace(/^###\s*/, "");
-      html += `<h3>${content ? formatInline(content) : "<br>"}</h3>`;
-      continue;
-    }
-
-    // Heading 2: ## ...
-    if (/^##\s*(.*)/.test(line)) {
-      if (inUl) { html += "</ul>"; inUl = false; }
-      if (inOl) { html += "</ol>"; inOl = false; }
-      const content = line.replace(/^##\s*/, "");
-      html += `<h2>${content ? formatInline(content) : "<br>"}</h2>`;
-      continue;
-    }
-
-    // Heading 1: # ...
-    if (/^#\s*(.*)/.test(line)) {
-      if (inUl) { html += "</ul>"; inUl = false; }
-      if (inOl) { html += "</ol>"; inOl = false; }
-      const content = line.replace(/^#\s*/, "");
-      html += `<h1>${content ? formatInline(content) : "<br>"}</h1>`;
-      continue;
-    }
-
-    // Bullet list: - or *
-    if (/^(\s*)[-*]\s+(.*)/.test(line)) {
-      if (inOl) { html += "</ol>"; inOl = false; }
-      if (!inUl) { html += "<ul>"; inUl = true; }
-      html += `<li>${formatInline(line.replace(/^(\s*)[-*]\s+/, ""))}</li>`;
-      continue;
-    }
-
-    // Numbered list: 1.
-    if (/^(\s*)\d+\.\s+(.*)/.test(line)) {
-      if (inUl) { html += "</ul>"; inUl = false; }
-      if (!inOl) { html += "<ol>"; inOl = true; }
-      html += `<li>${formatInline(line.replace(/^(\s*)\d+\.\s+/, ""))}</li>`;
-      continue;
-    }
-
-    // Normal line
-    if (inUl) { html += "</ul>"; inUl = false; }
-    if (inOl) { html += "</ol>"; inOl = false; }
-
-    if (!line.trim()) {
-      html += "<p><br></p>";
-    } else {
-      html += `<p>${formatInline(line)}</p>`;
-    }
-  }
-
-  if (inUl) html += "</ul>";
-  if (inOl) html += "</ol>";
-
-  return html;
-}
-
-function htmlToMarkdown(root: HTMLElement): string {
-  function walk(node: Node): string {
-    if (node.nodeType === Node.TEXT_NODE) {
-      return node.textContent || "";
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) {
-      return "";
-    }
-
-    const el = node as HTMLElement;
-    const tag = el.tagName.toLowerCase();
-
-    let children = "";
-    for (let i = 0; i < el.childNodes.length; i++) {
-      children += walk(el.childNodes[i]);
-    }
-
-    switch (tag) {
-      case "h1":
-        return `# ${children.trim()}\n\n`;
-      case "h2":
-        return `## ${children.trim()}\n\n`;
-      case "h3":
-        return `### ${children.trim()}\n\n`;
-      case "h4":
-        return `#### ${children.trim()}\n\n`;
-      case "p":
-      case "div":
-        return children.trim() ? `${children.trim()}\n\n` : "\n";
-      case "li": {
-        const parent = el.parentElement?.tagName.toLowerCase();
-        if (parent === "ol") {
-          const idx = Array.from(el.parentElement?.children || []).indexOf(el) + 1;
-          return `${idx}. ${children.trim()}\n`;
-        }
-        return `- ${children.trim()}\n`;
-      }
-      case "ul":
-      case "ol":
-        return `${children.trim()}\n\n`;
-      case "hr":
-        return `---\n\n`;
-      case "strong":
-      case "b":
-        return `**${children}**`;
-      case "em":
-      case "i":
-        return `*${children}*`;
-      case "code":
-        return `\`${children}\``;
-      case "br":
-        return "\n";
-      default:
-        return children;
-    }
-  }
-
-  return walk(root).replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export default function JobDescriptionInput({
@@ -215,14 +62,7 @@ export default function JobDescriptionInput({
     lastReportedMd.current = previousMd;
     editorRef.current.innerHTML = markdownToHtml(previousMd);
     onChange(previousMd);
-
-    // Place caret at end
-    const sel = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(editorRef.current);
-    range.collapse(false);
-    sel?.removeAllRanges();
-    sel?.addRange(range);
+    setCaretToEnd(editorRef.current);
   }, [onChange]);
 
   const handleRedo = useCallback(() => {
@@ -234,14 +74,7 @@ export default function JobDescriptionInput({
     lastReportedMd.current = nextMd;
     editorRef.current.innerHTML = markdownToHtml(nextMd);
     onChange(nextMd);
-
-    // Place caret at end
-    const sel = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(editorRef.current);
-    range.collapse(false);
-    sel?.removeAllRanges();
-    sel?.addRange(range);
+    setCaretToEnd(editorRef.current);
   }, [onChange]);
 
   // Sync external markdown changes into editor HTML
@@ -265,7 +98,6 @@ export default function JobDescriptionInput({
     lastReportedMd.current = md;
     onChange(md);
 
-    // Debounced history record while typing
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(() => {
       pushHistory(textBeforeTypingRef.current);
@@ -274,14 +106,11 @@ export default function JobDescriptionInput({
   }, [onChange, pushHistory]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // Ctrl+Z (Undo) and Ctrl+Shift+Z / Ctrl+Y (Redo)
+    // Undo / Redo
     if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
       e.preventDefault();
-      if (e.shiftKey) {
-        handleRedo();
-      } else {
-        handleUndo();
-      }
+      if (e.shiftKey) handleRedo();
+      else handleUndo();
       return;
     }
 
@@ -291,155 +120,24 @@ export default function JobDescriptionInput({
       return;
     }
 
+    // Ctrl+Enter to generate
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       onEnterGenerate();
       return;
     }
 
-    // Capture text state before structural changes
     if ([" ", "Enter", "Backspace"].includes(e.key) && editorRef.current) {
-      const currentMd = htmlToMarkdown(editorRef.current);
-      textBeforeTypingRef.current = currentMd;
+      textBeforeTypingRef.current = htmlToMarkdown(editorRef.current);
     }
 
-    // Markdown shortcut expansion on Space
-    if (e.key === " ") {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-      const node = range.startContainer;
-
-      if (node && node.nodeType === Node.TEXT_NODE) {
-        // Check if already inside a heading
-        let blockNode: Node | null = node;
-        while (
-          blockNode &&
-          blockNode !== editorRef.current &&
-          !["H1", "H2", "H3", "H4", "LI", "P", "DIV"].includes((blockNode as HTMLElement).tagName || "")
-        ) {
-          blockNode = blockNode.parentNode;
-        }
-
-        const tag = (blockNode as HTMLElement)?.tagName || "";
-        const isHeading = ["H1", "H2", "H3", "H4"].includes(tag);
-
-        // If already inside a heading, do NOT convert or delete subsequent hashes
-        if (isHeading) {
-          return;
-        }
-
-        const textBeforeCaret = node.textContent?.slice(0, range.startOffset) || "";
-        const textAfterCaret = node.textContent?.slice(range.startOffset) || "";
-
-        // Multi-hash patterns: e.g. "# #", "## #", "## ##", "### #"
-        const multiHashMatch = textBeforeCaret.match(/^(#{1,4})\s+(#.*)$/);
-        if (multiHashMatch) {
-          e.preventDefault();
-          if (editorRef.current) pushHistory(htmlToMarkdown(editorRef.current));
-          const level = multiHashMatch[1].length;
-          const remainingHashes = multiHashMatch[2];
-          node.textContent = `${remainingHashes} ${textAfterCaret}`;
-          document.execCommand("formatBlock", false, `h${level}`);
-          handleInput();
-          return;
-        }
-
-        if (textBeforeCaret === "#") {
-          e.preventDefault();
-          if (editorRef.current) pushHistory(htmlToMarkdown(editorRef.current));
-          node.textContent = textAfterCaret;
-          document.execCommand("formatBlock", false, "h1");
-          handleInput();
-          return;
-        } else if (textBeforeCaret === "##") {
-          e.preventDefault();
-          if (editorRef.current) pushHistory(htmlToMarkdown(editorRef.current));
-          node.textContent = textAfterCaret;
-          document.execCommand("formatBlock", false, "h2");
-          handleInput();
-          return;
-        } else if (textBeforeCaret === "###") {
-          e.preventDefault();
-          if (editorRef.current) pushHistory(htmlToMarkdown(editorRef.current));
-          node.textContent = textAfterCaret;
-          document.execCommand("formatBlock", false, "h3");
-          handleInput();
-          return;
-        } else if (textBeforeCaret === "####") {
-          e.preventDefault();
-          if (editorRef.current) pushHistory(htmlToMarkdown(editorRef.current));
-          node.textContent = textAfterCaret;
-          document.execCommand("formatBlock", false, "h4");
-          handleInput();
-          return;
-        } else if (textBeforeCaret === "-" || textBeforeCaret === "*") {
-          e.preventDefault();
-          if (editorRef.current) pushHistory(htmlToMarkdown(editorRef.current));
-          node.textContent = textAfterCaret;
-          document.execCommand("insertUnorderedList");
-          handleInput();
-          return;
-        } else if (textBeforeCaret === "1.") {
-          e.preventDefault();
-          if (editorRef.current) pushHistory(htmlToMarkdown(editorRef.current));
-          node.textContent = textAfterCaret;
-          document.execCommand("insertOrderedList");
-          handleInput();
-          return;
-        }
-      }
-    }
-
-    // Divider shortcut expansion on Enter
-    if (e.key === "Enter") {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-      const node = range.startContainer;
-      if (node && node.nodeType === Node.TEXT_NODE) {
-        const text = (node.textContent || "").trim();
-        if (text === "---" || text === "***") {
-          e.preventDefault();
-          node.textContent = "";
-          document.execCommand("insertHorizontalRule");
-          handleInput();
-          return;
-        }
-      }
-    }
-
-    // Demote heading or list on Backspace at start of line
-    if (e.key === "Backspace") {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-
-      if (range.startOffset === 0) {
-        let blockNode: Node | null = range.startContainer;
-        while (
-          blockNode &&
-          blockNode !== editorRef.current &&
-          !["H1", "H2", "H3", "H4", "LI"].includes((blockNode as HTMLElement).tagName || "")
-        ) {
-          blockNode = blockNode.parentNode;
-        }
-
-        if (blockNode && blockNode !== editorRef.current) {
-          const tag = (blockNode as HTMLElement).tagName;
-          if (["H1", "H2", "H3", "H4"].includes(tag)) {
-            e.preventDefault();
-            document.execCommand("formatBlock", false, "p");
-            handleInput();
-            return;
-          }
-          if (tag === "LI" && (blockNode.textContent || "").trim() === "") {
-            e.preventDefault();
-            document.execCommand("insertUnorderedList");
-            handleInput();
-            return;
-          }
-        }
+    // Markdown shortcut expansion
+    if (editorRef.current) {
+      const handled = tryHandleMarkdownShortcut(e, editorRef.current, () => {
+        if (editorRef.current) pushHistory(htmlToMarkdown(editorRef.current));
+      });
+      if (handled) {
+        handleInput();
       }
     }
   };
@@ -457,23 +155,18 @@ export default function JobDescriptionInput({
     const sel = window.getSelection();
 
     const isEditorEmpty = !editorRef.current?.innerText.trim();
-    const isSelectAll =
-      Boolean(
-        sel &&
-        sel.rangeCount > 0 &&
-        !sel.isCollapsed &&
-        editorRef.current &&
-        sel.toString().trim().length >= (editorRef.current.innerText.trim().length - 2)
-      );
+    const isSelectAll = Boolean(
+      sel &&
+      sel.rangeCount > 0 &&
+      !sel.isCollapsed &&
+      editorRef.current &&
+      sel.toString().trim().length >= (editorRef.current.innerText.trim().length - 2)
+    );
 
     if (isEditorEmpty || isSelectAll) {
       if (editorRef.current) {
         editorRef.current.innerHTML = html;
-        const range = document.createRange();
-        range.selectNodeContents(editorRef.current);
-        range.collapse(false);
-        sel?.removeAllRanges();
-        sel?.addRange(range);
+        setCaretToEnd(editorRef.current);
       }
     } else if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
@@ -505,60 +198,8 @@ export default function JobDescriptionInput({
 
   const handleCopy = (e: React.ClipboardEvent<HTMLDivElement>) => {
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
-
-    const range = selection.getRangeAt(0);
-
-    // Check if selection is within a single block
-    let startBlock: HTMLElement | null = range.startContainer as HTMLElement;
-    while (
-      startBlock &&
-      startBlock !== editorRef.current &&
-      !["H1", "H2", "H3", "H4", "LI", "P", "DIV"].includes(startBlock.tagName || "")
-    ) {
-      startBlock = startBlock.parentElement;
-    }
-
-    let endBlock: HTMLElement | null = range.endContainer as HTMLElement;
-    while (
-      endBlock &&
-      endBlock !== editorRef.current &&
-      !["H1", "H2", "H3", "H4", "LI", "P", "DIV"].includes(endBlock.tagName || "")
-    ) {
-      endBlock = endBlock.parentElement;
-    }
-
-    if (startBlock && startBlock === endBlock && startBlock !== editorRef.current) {
-      const tag = startBlock.tagName.toLowerCase();
-      const selectedText = selection.toString();
-
-      let prefix = "";
-      if (tag === "h1") prefix = "# ";
-      else if (tag === "h2") prefix = "## ";
-      else if (tag === "h3") prefix = "### ";
-      else if (tag === "h4") prefix = "#### ";
-      else if (tag === "li") {
-        const parent = startBlock.parentElement?.tagName.toLowerCase();
-        if (parent === "ol") {
-          const idx = Array.from(startBlock.parentElement?.children || []).indexOf(startBlock) + 1;
-          prefix = `${idx}. `;
-        } else {
-          prefix = "- ";
-        }
-      }
-
-      if (prefix) {
-        e.preventDefault();
-        e.clipboardData.setData("text/plain", `${prefix}${selectedText}`);
-        return;
-      }
-    }
-
-    // Multi-block selection
-    const clonedSelection = range.cloneContents();
-    const container = document.createElement("div");
-    container.appendChild(clonedSelection);
-    const md = htmlToMarkdown(container);
+    if (!selection || !editorRef.current) return;
+    const md = extractMarkdownFromSelection(selection, editorRef.current);
     if (md) {
       e.preventDefault();
       e.clipboardData.setData("text/plain", md);

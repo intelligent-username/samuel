@@ -1,16 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteGeneration, updateGeneration, stopGeneration, retryGeneration } from "@/lib/api";
 import type { Generation } from "@/lib/types";
-
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  pending:   { label: "Pending",   color: "var(--color-muted-fg)" },
-  running:   { label: "Running",   color: "var(--color-primary)" },
-  completed: { label: "Completed", color: "var(--color-success)" },
-  failed:    { label: "Failed",    color: "var(--color-destructive)" },
-};
+import DeleteConfirmModal from "./history/DeleteConfirmModal";
+import GenerationCard from "./history/GenerationCard";
 
 interface HistoryListProps {
   generations: Generation[];
@@ -28,12 +23,17 @@ export default function HistoryList({
   onSelect,
 }: HistoryListProps) {
   const router = useRouter();
+
+  // Deletion state
   const [confirmDeleteGen, setConfirmDeleteGen] = useState<Generation | null>(null);
   const [confirmMultiDelete, setConfirmMultiDelete] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isMultiDeleting, setIsMultiDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Selection state
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Status tag action states (stop/retry)
   const [hoveredTagGenId, setHoveredTagGenId] = useState<string | null>(null);
@@ -70,46 +70,6 @@ export default function HistoryList({
     }
   };
 
-  // Title editing state
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
-  const [savingTitle, setSavingTitle] = useState(false);
-  const editInputRef = useRef<HTMLInputElement | null>(null);
-
-  const startRename = (gen: Generation, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingId(gen.id);
-    const initial = gen.title ?? gen.job_description_text?.slice(0, 140).replace(/\n/g, " ") ?? "";
-    setEditValue(initial);
-    setTimeout(() => {
-      editInputRef.current?.focus();
-      editInputRef.current?.select();
-    }, 50);
-  };
-
-  const cancelRename = () => {
-    setEditingId(null);
-    setEditValue("");
-  };
-
-  const saveRename = async (genId: string) => {
-    if (savingTitle) return;
-    const trimmed = editValue.trim();
-    setSavingTitle(true);
-    try {
-      const updated = await updateGeneration(genId, trimmed);
-      if (onUpdated) {
-        onUpdated(genId, updated);
-      }
-      setEditingId(null);
-    } catch {
-      // Keep edit state or cancel
-      setEditingId(null);
-    } finally {
-      setSavingTitle(false);
-    }
-  };
-
   const handleDelete = async () => {
     if (!confirmDeleteGen) return;
     const targetId = confirmDeleteGen.id;
@@ -117,9 +77,7 @@ export default function HistoryList({
     setDeleteError(null);
     try {
       await deleteGeneration(targetId);
-      if (onDeleted) {
-        onDeleted(targetId);
-      }
+      if (onDeleted) onDeleted(targetId);
       setSelectedIds((prev) => {
         const next = new Set(prev);
         next.delete(targetId);
@@ -191,87 +149,17 @@ export default function HistoryList({
 
   return (
     <>
-      {/* Single Confirmation Dialog */}
-      {confirmDeleteGen && (
-        <div
-          className="modal-backdrop"
-          onClick={() => !deletingId && setConfirmDeleteGen(null)}
-        >
-          <div
-            className="nm-card modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>Delete Generation</h3>
-            <p className="text-muted" style={{ fontSize: "0.875rem", marginBottom: "1.25rem", color: "var(--color-foreground)" }}>
-              Are you sure? This is permanent
-            </p>
-            {deleteError && (
-              <p style={{ color: "var(--color-destructive)", fontSize: "0.8rem", marginBottom: "1rem" }}>
-                {deleteError}
-              </p>
-            )}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost"
-                onClick={() => setConfirmDeleteGen(null)}
-                disabled={!!deletingId}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-destructive"
-                onClick={handleDelete}
-                disabled={!!deletingId}
-              >
-                {deletingId ? <span className="spinner spinner-sm" /> : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Multi-Delete Confirmation Dialog */}
-      {confirmMultiDelete && (
-        <div
-          className="modal-backdrop"
-          onClick={() => !isMultiDeleting && setConfirmMultiDelete(false)}
-        >
-          <div
-            className="nm-card modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>Delete {selectedIds.size} Generations</h3>
-            <p className="text-muted" style={{ fontSize: "0.875rem", marginBottom: "1.25rem", color: "var(--color-foreground)" }}>
-              Are you sure? This is permanent
-            </p>
-            {deleteError && (
-              <p style={{ color: "var(--color-destructive)", fontSize: "0.8rem", marginBottom: "1rem" }}>
-                {deleteError}
-              </p>
-            )}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost"
-                onClick={() => setConfirmMultiDelete(false)}
-                disabled={isMultiDeleting}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-destructive"
-                onClick={handleMultiDelete}
-                disabled={isMultiDeleting}
-              >
-                {isMultiDeleting ? <span className="spinner spinner-sm" /> : `Delete (${selectedIds.size})`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmModal
+        isOpen={Boolean(confirmDeleteGen || confirmMultiDelete)}
+        count={confirmMultiDelete ? selectedIds.size : 1}
+        isDeleting={Boolean(deletingId || isMultiDeleting)}
+        error={deleteError}
+        onCancel={() => {
+          setConfirmDeleteGen(null);
+          setConfirmMultiDelete(false);
+        }}
+        onConfirm={confirmMultiDelete ? handleMultiDelete : handleDelete}
+      />
 
       {generations.length === 0 ? (
         <div className="nm-card" style={{ textAlign: "center", padding: compact ? "2rem 1rem" : "3rem", width: "100%" }}>
@@ -312,7 +200,6 @@ export default function HistoryList({
                   borderRadius: "6px",
                 }}
               >
-                {/* Trash can icon */}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 6h18" />
                   <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
@@ -359,271 +246,25 @@ export default function HistoryList({
             </label>
           </div>
 
-          {generations.map((gen) => {
-            const meta = STATUS_META[gen.status] ?? STATUS_META.pending;
-            const createdAt = new Date(gen.created_at).toLocaleString();
-            const snippet = gen.job_description_text?.slice(0, 140).replace(/\n/g, " ");
-            const isChecked = selectedIds.has(gen.id);
-
-            return (
-              <div
-                key={gen.id}
-                className="nm-card"
-                style={{
-                  cursor: "pointer",
-                  transition: "border-color 0.18s ease, background 0.15s ease",
-                  padding: compact ? "0.875rem 1rem" : "1.25rem 1.5rem",
-                  position: "relative",
-                  borderColor: isChecked ? "var(--color-primary)" : "var(--color-border)",
-                  background: isChecked ? "rgba(0, 102, 153, 0.08)" : "var(--color-card)",
-                }}
-                onClick={() => handleClickItem(gen.id)}
-                onMouseEnter={(e) => {
-                  if (!isChecked) e.currentTarget.style.borderColor = "var(--color-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  if (!isChecked) e.currentTarget.style.borderColor = "var(--color-border)";
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {editingId === gen.id ? (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ marginBottom: "0.35rem", display: "flex", alignItems: "center", gap: "0.4rem" }}
-                      >
-                        <input
-                          ref={editInputRef}
-                          type="text"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") saveRename(gen.id);
-                            else if (e.key === "Escape") cancelRename();
-                          }}
-                          onBlur={() => saveRename(gen.id)}
-                          disabled={savingTitle}
-                          maxLength={255}
-                          className="input"
-                          style={{
-                            padding: "0.2rem 0.45rem",
-                            fontSize: compact ? "0.84rem" : "0.9rem",
-                            fontWeight: 500,
-                            width: "100%",
-                            background: "var(--color-background)",
-                            borderColor: "var(--color-primary)",
-                            borderRadius: "4px",
-                          }}
-                          placeholder="Name this generation..."
-                        />
-                      </div>
-                    ) : (
-                      <p
-                        title="Double-click to rename"
-                        onClick={(e) => e.stopPropagation()}
-                        onDoubleClick={(e) => startRename(gen, e)}
-                        style={{
-                          fontWeight: 500,
-                          fontSize: compact ? "0.84rem" : "0.9rem",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          marginBottom: "0.35rem",
-                          paddingRight: "0.5rem",
-                          cursor: "text",
-                          color: "var(--color-foreground)",
-                        }}
-                      >
-                        {gen.title ? gen.title : `${snippet || "No job description"}...`}
-                      </p>
-                    )}
-                    <span className="text-xs text-muted">{createdAt}</span>
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexShrink: 0 }}>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.35rem" }}>
-                      {gen.status === "running" ? (
-                        <button
-                          type="button"
-                          onClick={(e) => handleStop(gen, e)}
-                          onMouseEnter={() => setHoveredTagGenId(gen.id)}
-                          onMouseLeave={() => setHoveredTagGenId(null)}
-                          disabled={actionGenId === gen.id}
-                          title={hoveredTagGenId === gen.id ? "Click to stop generation" : "Running (click to stop)"}
-                          className="chip"
-                          style={{
-                            cursor: "pointer",
-                            fontSize: "0.7rem",
-                            padding: "0.15rem 0.55rem",
-                            transition: "all 0.15s ease",
-                            fontWeight: 600,
-                            background: hoveredTagGenId === gen.id ? "rgba(220, 38, 38, 0.14)" : "var(--color-card)",
-                            color: hoveredTagGenId === gen.id ? "var(--color-destructive)" : "var(--color-primary)",
-                            borderColor: hoveredTagGenId === gen.id ? "var(--color-destructive)" : "var(--color-primary)",
-                          }}
-                        >
-                          {actionGenId === gen.id ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-                              <span className="spinner spinner-xs" />
-                              Stopping…
-                            </span>
-                          ) : hoveredTagGenId === gen.id ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
-                              <span style={{ fontSize: "0.6rem" }}>■</span> Stop
-                            </span>
-                          ) : (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-                              <span className="spinner spinner-xs" />
-                              Running
-                            </span>
-                          )}
-                        </button>
-                      ) : gen.status === "failed" ? (
-                        <button
-                          type="button"
-                          onClick={(e) => handleRetry(gen, e)}
-                          onMouseEnter={() => setHoveredTagGenId(gen.id)}
-                          onMouseLeave={() => setHoveredTagGenId(null)}
-                          disabled={actionGenId === gen.id}
-                          title={hoveredTagGenId === gen.id ? "Click to retry generation" : "Failed (click to retry)"}
-                          className="chip"
-                          style={{
-                            cursor: "pointer",
-                            fontSize: "0.7rem",
-                            padding: "0.15rem 0.55rem",
-                            transition: "all 0.15s ease",
-                            fontWeight: 600,
-                            background: hoveredTagGenId === gen.id ? "rgba(0, 102, 153, 0.16)" : "var(--color-card)",
-                            color: hoveredTagGenId === gen.id ? "var(--color-primary)" : "var(--color-destructive)",
-                            borderColor: hoveredTagGenId === gen.id ? "var(--color-primary)" : "rgba(220, 38, 38, 0.4)",
-                          }}
-                        >
-                          {actionGenId === gen.id ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-                              <span className="spinner spinner-sm" style={{ width: "9px", height: "9px", borderWidth: "1.5px" }} />
-                              Retrying…
-                            </span>
-                          ) : hoveredTagGenId === gen.id ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
-                              ↻ Retry
-                            </span>
-                          ) : (
-                            "Failed"
-                          )}
-                        </button>
-                      ) : (
-                        <span
-                          className="chip"
-                          style={{
-                            color: meta.color,
-                            background: "var(--color-card)",
-                            fontSize: "0.7rem",
-                            padding: "0.15rem 0.55rem",
-                            borderColor: meta.color === "var(--color-muted-fg)" ? "var(--color-border)" : meta.color,
-                          }}
-                        >
-                          {meta.label}
-                        </span>
-                      )}
-                      {gen.status === "completed" && gen.ats_report && typeof gen.ats_report.score === "number" && (
-                        <span
-                          className="chip"
-                          style={{
-                            fontSize: "0.7rem",
-                            padding: "0.1rem 0.45rem",
-                            color:
-                              gen.ats_report.score >= 80
-                                ? "var(--color-success)"
-                                : gen.ats_report.score > 45
-                                ? "var(--color-accent)"
-                                : "var(--color-destructive)",
-                            borderColor:
-                              gen.ats_report.score >= 80
-                                ? "var(--color-success)"
-                                : gen.ats_report.score > 45
-                                ? "var(--color-accent)"
-                                : "var(--color-destructive)",
-                            background:
-                              gen.ats_report.score >= 80
-                                ? "rgba(26, 158, 110, 0.15)"
-                                : gen.ats_report.score > 45
-                                ? "rgba(252, 106, 3, 0.15)"
-                                : "rgba(153, 27, 27, 0.15)",
-                          }}
-                          title={gen.ats_report.issues?.length ? `${gen.ats_report.issues.length} issues` : undefined}
-                        >
-                          ATS {gen.ats_report.score}/100
-                          {Array.isArray(gen.ats_report.issues) && gen.ats_report.issues.length > 0 && !compact && (
-                            <span style={{ marginLeft: "0.35rem", fontSize: "0.68rem", opacity: 0.85 }}>· {gen.ats_report.issues.length} issues</span>
-                          )}
-                        </span>
-                      )}
-                    </div>
-
-                    {isSelectMode ? (
-                      /* Checkbox when in select mode */
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                          width: "24px",
-                          height: "24px",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => toggleCheck(gen.id, e)}
-                          className="checkbox-control"
-                        />
-                      </div>
-                    ) : (
-                      /* "X" Delete Button when not in select mode */
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConfirmDeleteGen(gen);
-                        }}
-                        title="Delete generation"
-                        aria-label={`Delete generation from ${createdAt}`}
-                        style={{
-                          width: "24px",
-                          height: "24px",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          borderRadius: "4px",
-                          border: "1px solid transparent",
-                          background: "transparent",
-                          color: "var(--color-muted-fg)",
-                          cursor: "pointer",
-                          fontSize: "1rem",
-                          lineHeight: 1,
-                          transition: "all 0.15s",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "rgba(153,27,27,0.14)";
-                          e.currentTarget.style.color = "var(--color-destructive)";
-                          e.currentTarget.style.borderColor = "rgba(153,27,27,0.2)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "transparent";
-                          e.currentTarget.style.color = "var(--color-muted-fg)";
-                          e.currentTarget.style.borderColor = "transparent";
-                        }}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {generations.map((gen) => (
+            <GenerationCard
+              key={gen.id}
+              gen={gen}
+              compact={compact}
+              isChecked={selectedIds.has(gen.id)}
+              isSelectMode={isSelectMode}
+              actionGenId={actionGenId}
+              hoveredTagGenId={hoveredTagGenId}
+              onHoverTag={setHoveredTagGenId}
+              onClick={handleClickItem}
+              onCheck={toggleCheck}
+              onDeleteRequest={setConfirmDeleteGen}
+              onStop={handleStop}
+              onRetry={handleRetry}
+              onUpdated={onUpdated}
+              updateGenerationFn={updateGeneration}
+            />
+          ))}
         </div>
       )}
     </>
