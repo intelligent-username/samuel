@@ -1,0 +1,8 @@
+{
+  "experience": ["experience", "work experience", "employment", "employment history", "professional experience", "work history"],
+  "education": ["education", "academic background", "academic history", "qualifications", "degrees"],
+  "skills": ["skills", "technical skills", "core skills", "competencies", "expertise", "technologies"],
+  "projects": ["projects", "personal projects", "portfolio", "selected projects", "key projects"],
+  "contact": ["contact", "contact information", "contact details"],
+  "summary": ["summary", "profile", "objective", "about me"]
+}
