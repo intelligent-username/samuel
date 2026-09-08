@@ -35,6 +35,10 @@ export default function ResultsPage() {
     setJobDescription,
     generationTitle,
     setGenerationTitle,
+    iterations,
+    exitReason,
+    atsScores,
+    currentThreshold,
   } = useGenerationStream(params.id);
 
   const [stopping, setStopping] = useState(false);
@@ -161,6 +165,29 @@ export default function ResultsPage() {
             stopping={stopping}
             onStop={handleStopGeneration}
           />
+        )}
+
+        {iterations.length > 0 && (
+          <div className="nm-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+            <h4 style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.5rem" }}>Iterations</h4>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+              {iterations.map((it) => (
+                <li key={it.iteration} className="text-sm" style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Iter {it.iteration} — {it.score}/{currentThreshold ?? atsScores[0] ?? "?"}</span>
+                  <span>{currentThreshold !== null && it.score >= currentThreshold ? "✓ met" : "retrying"}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {done && exitReason && (
+          <div className="nm-card" style={{ padding: "1rem", marginBottom: "1rem", borderColor: exitReason === "threshold_met" ? "var(--color-success)" : exitReason === "stagnation" ? "#f59e0b" : "var(--color-border)" }}>
+            {exitReason === "threshold_met" && <span>✓ Target met ({atsScore}/{currentThreshold})</span>}
+            {exitReason === "stagnation" && <span>Paused — improvement stalled below 3% for 3 tries (final {atsScore})</span>}
+            {exitReason === "max_iterations" && <span>Reached max tries — final {atsScore}/{currentThreshold}</span>}
+            {exitReason === "single_pass" && null}
+          </div>
         )}
 
         {/* Fatal Error */}

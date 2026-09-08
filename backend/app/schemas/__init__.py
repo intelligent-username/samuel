@@ -51,6 +51,21 @@ class GenerateRequest(BaseModel):
     """Request body to start a new resume generation."""
     resume_id: UUID
     job_description: str = Field(..., min_length=10, max_length=24000, description="Job description 10-24000 chars")
+    ats_threshold: int | None = Field(default=None, ge=0, le=100, description="ATS target 0-100, None/0=single-pass")
+    ats_max_iterations: int | None = Field(default=None, ge=5, le=7, description="ATS max iterations 5-7")
+
+    @field_validator("ats_max_iterations", mode="before")
+    @classmethod
+    def _clamp_max_iter(cls, v: int | str | None) -> int | None:
+        if v is None:
+            return None
+        try:
+            iv = int(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            raise ValueError("ats_max_iterations must be integer 5-7")
+        if iv < 5 or iv > 7:
+            raise ValueError("ats_max_iterations must be between 5 and 7")
+        return iv
 
     @field_validator("job_description")
     @classmethod
@@ -80,6 +95,11 @@ class GenerationResponse(BaseModel):
     ats_report: dict[str, Any] | None = None
     created_at: datetime
     completed_at: datetime | None = None
+    ats_threshold: int | None = None
+    ats_max_iterations: int | None = None
+    ats_exit_reason: str | None = None
+    ats_scores: list[int] | None = None
+    iterations: list[dict[str, Any]] | None = None
 
     model_config = {"from_attributes": True, "extra": "forbid"}
 

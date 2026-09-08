@@ -51,6 +51,24 @@ export default function DashboardPage() {
   const [savingKey, setSavingKey] = useState(false);
   const [username, setUsername] = useState("");
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+  const [atsThreshold, setAtsThreshold] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const v = localStorage.getItem("samuel_ats_threshold");
+        if (v !== null) {
+          const n = Number(v);
+          if (!Number.isNaN(n)) return Math.max(0, Math.min(100, n));
+        }
+      } catch {}
+    }
+    return 80;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("samuel_ats_threshold", String(atsThreshold));
+    } catch {}
+  }, [atsThreshold]);
 
   const JD_MAX = 24000;
   const jdLen = jobDesc.length;
@@ -207,7 +225,7 @@ export default function DashboardPage() {
 
     setGenerating(true);
     try {
-      const gen = await startGeneration(selectedResumeId, jobDesc.trim());
+      const gen = await startGeneration(selectedResumeId, jobDesc.trim(), { ats_threshold: atsThreshold });
       router.push(`/dashboard/results/${gen.id}`);
     } catch (e: unknown) {
       flash(e instanceof Error ? e.message : "Failed to start generation", "error");
@@ -284,6 +302,18 @@ export default function DashboardPage() {
               onUploadFile={handleUploadFile}
               onRemoveResume={handleRemoveResumeOption}
             />
+
+            <div className="nm-card" style={{ padding: "0.85rem 1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <label className="text-sm" style={{ fontWeight: 600 }}>Target ATS score</label>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <input type="range" min={0} max={100} step={5} value={atsThreshold} onChange={(e) => setAtsThreshold(Number(e.target.value))} style={{ flex: 1, accentColor: "var(--color-primary)" }} />
+                <input type="number" min={0} max={100} value={atsThreshold} onChange={(e) => setAtsThreshold(Math.max(0, Math.min(100, Number(e.target.value) || 0)))} style={{ width: "4.5rem", padding: "0.35rem 0.5rem", borderRadius: "8px", border: "1px solid var(--color-border)" }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem" }} className="text-muted">
+                <span>75</span><span>80</span><span>85</span><span>90</span>
+              </div>
+              <span className="text-xs text-muted">0 = single-pass (no loop)</span>
+            </div>
 
             <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, position: "relative" }}>
               <button

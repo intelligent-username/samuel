@@ -37,6 +37,11 @@ export interface Generation {
   rewritten_resume_text: string | null;
   ats_report: ATSReport | null;
   ats_score?: number;
+  ats_threshold?: number | null;
+  ats_max_iterations?: number | null;
+  ats_exit_reason?: string | null;
+  ats_scores?: number[] | null;
+  iterations?: Array<{ iteration: number; score: number }> | null;
   error_message?: string | null;
   created_at: string;
   completed_at: string | null;
@@ -64,6 +69,9 @@ export interface StepEvent {
 export interface DoneEvent {
   generation_id: string;
   ats_score: number;
+  ats_scores?: number[] | null;
+  exit_reason?: string | null;
+  iterations?: Array<{ iteration: number; score: number }> | null;
   rewritten_resume: string;
   pdf_url: string;
 }

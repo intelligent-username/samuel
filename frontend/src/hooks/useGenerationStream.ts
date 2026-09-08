@@ -14,6 +14,10 @@ export function useGenerationStream(generationId: string) {
   const [connectionError, setConnectionError] = useState(false);
   const [jobDescription, setJobDescription] = useState<string | null>(null);
   const [generationTitle, setGenerationTitle] = useState<string | null>(null);
+  const [iterations, setIterations] = useState<Array<{ iteration: number; score: number }>>([]);
+  const [exitReason, setExitReason] = useState<string | null>(null);
+  const [atsScores, setAtsScores] = useState<number[]>([]);
+  const [currentThreshold, setCurrentThreshold] = useState<number | null>(null);
 
   // Initial check
   useEffect(() => {
@@ -83,15 +87,40 @@ export function useGenerationStream(generationId: string) {
       }
     });
 
+    es.addEventListener("ats_evaluation", (e: MessageEvent) => {
+      const data = parseEventData<{ score?: number; threshold?: number; iteration?: number }>(e.data);
+      if (data.score !== undefined) {
+        setAtsScores((prev) => [...prev, data.score!]);
+        setIterations((prev) => [...prev, { iteration: data.iteration ?? prev.length + 1, score: data.score! }]);
+        if (data.threshold !== undefined) setCurrentThreshold(data.threshold);
+      }
+    });
+
+    es.addEventListener("ats_loop", (e: MessageEvent) => {
+      const data = parseEventData<{ iteration?: number; score?: number; threshold?: number }>(e.data);
+      if (data.threshold !== undefined) setCurrentThreshold(data.threshold);
+    });
+
+    es.addEventListener("ats_stagnation", () => {
+      setExitReason((prev) => prev ?? "stagnation");
+    });
+
     es.addEventListener("done", (e: MessageEvent) => {
-      const data = parseEventData<{ ats_score?: number }>(e.data);
+      const data = parseEventData<{ ats_score?: number; ats_scores?: number[]; exit_reason?: string; iterations?: Array<{ iteration: number; score: number }>; threshold?: number }>(e.data);
       setDone(true);
       if (data.ats_score !== undefined) setAtsScore(data.ats_score);
+      if (data.ats_scores) setAtsScores(data.ats_scores);
+      if (data.exit_reason) setExitReason(data.exit_reason);
+      if (data.iterations) setIterations(data.iterations);
       fetchGeneration(generationId)
         .then((gen) => {
           if (gen.rewritten_resume_text) setRewrittenResume(gen.rewritten_resume_text);
           if (gen.title) setGenerationTitle(gen.title);
           if (gen.job_description_text) setJobDescription(gen.job_description_text);
+          if ((gen as unknown as { ats_scores?: number[] }).ats_scores) setAtsScores((gen as unknown as { ats_scores: number[] }).ats_scores);
+          if ((gen as unknown as { ats_exit_reason?: string }).ats_exit_reason) setExitReason((gen as unknown as { ats_exit_reason: string }).ats_exit_reason);
+          if ((gen as unknown as { iterations?: Array<{ iteration: number; score: number }> }).iterations) setIterations((gen as unknown as { iterations: Array<{ iteration: number; score: number }> }).iterations);
+          if ((gen as unknown as { ats_threshold?: number }).ats_threshold !== undefined) setCurrentThreshold((gen as unknown as { ats_threshold: number }).ats_threshold);
         })
         .catch(() => null);
       es.close();
@@ -149,5 +178,9 @@ export function useGenerationStream(generationId: string) {
     setJobDescription,
     generationTitle,
     setGenerationTitle,
+    iterations,
+    exitReason,
+    atsScores,
+    currentThreshold,
   };
 }

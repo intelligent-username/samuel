@@ -84,6 +84,8 @@ async def start_generation(
         user_id=user_id,
         resume_id=resume.id,
         job_description_text=jd_text,  # store stripped/validated value
+        ats_threshold=body.ats_threshold,
+        ats_max_iterations=body.ats_max_iterations or settings.ats_max_iterations,
         status="pending",
     )
     db.add(generation)
@@ -119,6 +121,9 @@ async def stream_generation(
         ats_score = 0
         if generation.ats_report and isinstance(generation.ats_report, dict):
             ats_score = generation.ats_report.get("score", 0)
+        ats_exit = getattr(generation, "ats_exit_reason", None)
+        ats_scores_cached = getattr(generation, "ats_scores", None)
+        iterations_cached = getattr(generation, "iterations", None)
 
         async def cached_event_generator():
             # Replay step-done for all four steps so frontend marks them done instantly.
@@ -130,6 +135,9 @@ async def stream_generation(
             yield {"event": "done", "data": json.dumps({
                 "generation_id": str(generation.id),
                 "ats_score": ats_score,
+                "ats_scores": ats_scores_cached,
+                "exit_reason": ats_exit,
+                "iterations": iterations_cached,
                 "rewritten_resume": generation.rewritten_resume_text,  # fallback for Issue #8
                 "pdf_url": f"/generate/{generation.id}/download",
             })}
@@ -161,17 +169,29 @@ async def stream_generation(
             raise HTTPException(status_code=500, detail="Failed to decrypt stored API key — re-save it via dashboard (ENCRYPTION_KEY may have changed)") from e
 
     llm = LLMClient(api_key, groq_api_key=getattr(settings, "groq_api_key", "") or None)
-    orchestrator = Orchestrator(generation_id, llm, db)
+    try:
+        from app.services.ats_registry import registry
+        ats_provider = registry.get_default()
+    except Exception:
+        ats_provider = None
+    orchestrator = Orchestrator(generation_id, llm, db, ats_provider=ats_provider)
 
     async def event_generator():
         current_task = asyncio.current_task()
         if current_task:
             active_generation_tasks[generation_id] = current_task
         try:
-            async for event in orchestrator.run():
-                if isinstance(event.get("data"), (dict, list)):
-                    event["data"] = json.dumps(event["data"])
-                yield event
+            use_loop = generation.ats_threshold not in (None, 0)
+            if use_loop:
+                async for event in orchestrator.run_with_ats_loop(ats_threshold=generation.ats_threshold, ats_max_iterations=generation.ats_max_iterations):
+                    if isinstance(event.get("data"), (dict, list)):
+                        event["data"] = json.dumps(event["data"])
+                    yield event
+            else:
+                async for event in orchestrator.run():
+                    if isinstance(event.get("data"), (dict, list)):
+                        event["data"] = json.dumps(event["data"])
+                    yield event
         except asyncio.CancelledError:
             logger.info("generation %s was stopped/cancelled by user", generation_id)
             try:

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any, TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, LargeBinary, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String, Text
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -28,6 +28,11 @@ class Generation(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     pdf_content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ats_threshold: Mapped[int | None] = mapped_column(Integer, nullable=True, default=80)
+    ats_max_iterations: Mapped[int | None] = mapped_column(Integer, nullable=True, default=6)
+    ats_exit_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ats_scores: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    iterations: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="generations")
     resume: Mapped["Resume"] = relationship(back_populates="generations")

@@ -64,6 +64,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    # CHECKLIST: verify registry.get_default() returns provider_name == settings.ats_provider
+    try:
+        from app.services.ats_registry import registry
+        from app.services.ats_llm_adapter import ATSLLMAdapter
+
+        registry.register("llm", ATSLLMAdapter())
+    except Exception as e:
+        logger.warning("ATS registry init failed: %s", type(e).__name__)
+
     # Auto-backfill existing resumes with NULL pdf_content from local assets
     try:
         from app.database import async_session_factory

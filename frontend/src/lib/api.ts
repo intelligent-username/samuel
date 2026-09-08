@@ -74,10 +74,13 @@ export async function deleteGeneration(id: string): Promise<void> {
   await fetchApi(`/history/${id}`, { method: "DELETE" });
 }
 
-export async function startGeneration(resumeId: string, jobDescription: string): Promise<Generation> {
+export async function startGeneration(resumeId: string, jobDescription: string, opts?: { ats_threshold?: number; ats_max_iterations?: number }): Promise<Generation> {
+  const body: Record<string, unknown> = { resume_id: resumeId, job_description: jobDescription };
+  if (opts?.ats_threshold !== undefined) body.ats_threshold = opts.ats_threshold;
+  if (opts?.ats_max_iterations !== undefined) body.ats_max_iterations = opts.ats_max_iterations;
   return fetchApi<Generation>("/generate/", {
     method: "POST",
-    body: JSON.stringify({ resume_id: resumeId, job_description: jobDescription }),
+    body: JSON.stringify(body),
   });
 }
 
