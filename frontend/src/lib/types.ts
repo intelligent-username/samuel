@@ -49,7 +49,12 @@ export interface Generation {
 
 export interface StepProgress {
   step: string;
-  status: "running" | "done" | "error";
+  status: "pending" | "running" | "done" | "error";
+  label?: string;
+  message?: string;
+  summary?: string;
+  iteration?: number;
+  score?: number;
 }
 
 export interface ATSReport {

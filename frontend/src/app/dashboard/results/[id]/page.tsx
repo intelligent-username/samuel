@@ -25,13 +25,14 @@ export default function ResultsPage() {
   const router = useRouter();
 
   const {
+    steps,
     done,
     atsScore,
     rewrittenResume,
     pdfBlobUrl,
     fatalError,
     setFatalError,
-    connectionError,
+    connectionRetrying,
     jobDescription,
     setJobDescription,
     generationTitle,
@@ -161,27 +162,14 @@ export default function ResultsPage() {
           </Link>
         </div>
 
-        {/* Generation in Progress */}
-        {!fatalError && !done && !connectionError && (
+        {/* Generation in Progress (stays active throughout all ATS iterations) */}
+        {!fatalError && (!done || !rewrittenResume) && (
           <GenerationProgressCard
             stopping={stopping}
             onStop={handleStopGeneration}
+            steps={steps}
+            connectionRetrying={connectionRetrying}
           />
-        )}
-
-        {/* Iterations progress (visible while generating) */}
-        {!done && iterations.length > 0 && (
-          <div className="nm-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
-            <h4 style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.5rem" }}>Iterations</h4>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-              {iterations.map((it) => (
-                <li key={it.iteration} className="text-sm" style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Iter {it.iteration} — {it.score}/{currentThreshold ?? atsScores[0] ?? "?"}</span>
-                  <span>{currentThreshold !== null && it.score >= currentThreshold ? "✓ met" : "retrying"}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
         )}
 
         {/* Fatal Error */}
