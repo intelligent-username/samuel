@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { getDownloadUrl, getPreviewHtmlUrl } from "@/lib/api";
+import { getDownloadUrl } from "@/lib/api";
 
 interface ResumePreviewerProps {
   generationId: string;
@@ -28,38 +28,29 @@ export default function ResumePreviewer({
     ? `${generationTitle.trim().replace(/[/\\:*?"<>|]/g, "").replace(/\.pdf$/i, "")}.pdf`
     : "generated_resume.pdf";
 
-  const clamp = (z: number) => Math.min(220, Math.max(50, Math.round(z)));
+  const pdfUrl = `${pdfBlobUrl || getDownloadUrl(generationId)}#toolbar=0&navpanes=0&view=FitH`;
+  const clamp = (z: number) => Math.min(180, Math.max(60, Math.round(z)));
 
-  // Zoom: touch pinch only — scoped to the stage element
+  // Touch pinch zoom scoped to stage
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
-
     let startDist: number | null = null;
     let startZoom = 100;
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length < 2) return;
       setIsZooming(true);
-      startDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
+      startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
       startZoom = zoomRef.current;
     };
     const onTouchMove = (e: TouchEvent) => {
       if (e.touches.length < 2 || startDist === null) return;
       e.preventDefault();
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
       setZoomLevel(clamp(startZoom * (dist / startDist)));
     };
-    const onTouchEnd = () => {
-      startDist = null;
-      setIsZooming(false);
-    };
+    const onTouchEnd = () => { startDist = null; setIsZooming(false); };
 
     el.addEventListener("touchstart", onTouchStart, { passive: true });
     el.addEventListener("touchmove", onTouchMove, { passive: false });
@@ -83,7 +74,7 @@ export default function ResumePreviewer({
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [isFullscreen]);
 
-  const iframePointerEvents = isZooming ? "none" as const : "auto" as const;
+  const iframePointerEvents = isZooming ? ("none" as const) : ("auto" as const);
 
   return (
     <div
@@ -154,18 +145,59 @@ export default function ResumePreviewer({
               {pdfFileName}
             </span>
           </div>
+
           <div style={{ display: "inline-flex", background: "rgba(0, 0, 0, 0.2)", padding: "2px", borderRadius: "7px", border: "1px solid var(--color-border)" }}>
-            <button type="button" onClick={() => setPreviewMode("pdf")} className={`btn btn-xs ${previewMode === "pdf" ? "btn-primary" : "btn-ghost"}`} style={{ borderRadius: "5px", fontSize: "0.72rem", padding: "0.18rem 0.55rem", border: "none", cursor: "pointer", fontWeight: 600 }}>
+            <button
+              type="button"
+              onClick={() => setPreviewMode("pdf")}
+              className={`btn btn-xs ${previewMode === "pdf" ? "btn-primary" : "btn-ghost"}`}
+              style={{ borderRadius: "5px", fontSize: "0.72rem", padding: "0.18rem 0.55rem", border: "none", cursor: "pointer", fontWeight: 600 }}
+            >
               PDF Stream
             </button>
-            <button type="button" onClick={() => setPreviewMode("sheet")} className={`btn btn-xs ${previewMode === "sheet" ? "btn-primary" : "btn-ghost"}`} style={{ borderRadius: "5px", fontSize: "0.72rem", padding: "0.18rem 0.55rem", border: "none", cursor: "pointer", fontWeight: 600 }}>
+            <button
+              type="button"
+              onClick={() => setPreviewMode("sheet")}
+              className={`btn btn-xs ${previewMode === "sheet" ? "btn-primary" : "btn-ghost"}`}
+              style={{ borderRadius: "5px", fontSize: "0.72rem", padding: "0.18rem 0.55rem", border: "none", cursor: "pointer", fontWeight: 600 }}
+            >
               Paper Sheet
             </button>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-          <button type="button" onClick={() => setIsFullscreen((f) => !f)} className={`btn btn-xs ${isFullscreen ? "btn-primary" : "btn-ghost"}`} style={{ height: "1.75rem", padding: "0 0.55rem", display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.74rem", borderRadius: "6px", fontWeight: 600 }} title={isFullscreen ? "Exit Fullscreen (Esc)" : "Fullscreen Preview"}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", background: "rgba(0, 0, 0, 0.15)", borderRadius: "6px", padding: "1px" }}>
+            <button
+              type="button"
+              onClick={() => setZoomLevel((z) => clamp(z - 10))}
+              className="btn btn-xs btn-ghost"
+              style={{ height: "1.6rem", padding: "0 0.45rem", fontSize: "0.75rem", fontWeight: 700 }}
+              title="Zoom out"
+            >
+              −
+            </button>
+            <span style={{ fontSize: "0.7rem", minWidth: "2.3rem", textAlign: "center", color: "var(--color-muted)", fontVariantNumeric: "tabular-nums" }}>
+              {zoomLevel}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setZoomLevel((z) => clamp(z + 10))}
+              className="btn btn-xs btn-ghost"
+              style={{ height: "1.6rem", padding: "0 0.45rem", fontSize: "0.75rem", fontWeight: 700 }}
+              title="Zoom in"
+            >
+              +
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsFullscreen((f) => !f)}
+            className={`btn btn-xs ${isFullscreen ? "btn-primary" : "btn-ghost"}`}
+            style={{ height: "1.75rem", padding: "0 0.55rem", display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.74rem", borderRadius: "6px", fontWeight: 600 }}
+            title={isFullscreen ? "Exit Fullscreen (Esc)" : "Fullscreen Preview"}
+          >
             {isFullscreen ? (
               <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg><span>Exit</span></>
             ) : (
@@ -183,7 +215,7 @@ export default function ResumePreviewer({
           flex: 1,
           minHeight: 0,
           overflow: "hidden",
-          background: "linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.12) 100%)",
+          background: "linear-gradient(180deg, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.14) 100%)",
           position: "relative",
           outline: "none",
         }}
@@ -195,33 +227,45 @@ export default function ResumePreviewer({
               inset: 0,
               display: "flex",
               justifyContent: "center",
+              overflowY: "auto",
+              padding: "1.5rem 1rem",
             }}
           >
             <div
               style={{
                 width: "100%",
-                maxWidth: isFullscreen ? "min(1050px, 92vw)" : "700px",
+                maxWidth: isFullscreen ? "min(1050px, 92vw)" : "820px",
                 height: "100%",
+                minHeight: isFullscreen ? "100%" : "1060px",
                 transform: `scale(${zoomLevel / 100})`,
                 transformOrigin: "top center",
-                transition: "transform 0.18s ease-out",
-                borderRadius: "6px",
-                boxShadow: "0 18px 45px -8px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.12)",
+                transition: "transform 0.15s ease-out",
+                borderRadius: "4px",
+                boxShadow: "0 20px 45px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.12)",
                 background: "#ffffff",
                 overflow: "hidden",
+                alignSelf: "flex-start",
               }}
             >
               <iframe
-                src={getPreviewHtmlUrl(generationId)}
-                title="Resume Sheet Preview"
-                style={{ width: "100%", height: "100%", border: "none", display: "block", background: "#ffffff", pointerEvents: iframePointerEvents }}
-                onError={() => onError("Preview sheet failed to load. Try PDF stream instead.")}
+                src={pdfUrl}
+                title="Resume Paper Sheet"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  minHeight: isFullscreen ? "100%" : "1060px",
+                  border: "none",
+                  display: "block",
+                  background: "#ffffff",
+                  pointerEvents: iframePointerEvents,
+                }}
+                onError={() => onError("Paper sheet preview failed to load.")}
               />
             </div>
           </div>
         ) : (
           <iframe
-            src={`${pdfBlobUrl || getDownloadUrl(generationId)}#toolbar=0&navpanes=0&view=FitH`}
+            src={pdfUrl}
             title="Resume PDF Stream"
             style={{
               position: "absolute",

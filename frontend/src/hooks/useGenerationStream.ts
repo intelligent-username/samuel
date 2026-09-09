@@ -80,12 +80,7 @@ export function useGenerationStream(generationId: string) {
         return JSON.parse(rawData);
       } catch {
         try {
-          const jsonStr = rawData
-            .replace(/'/g, '"')
-            .replace(/True/g, "true")
-            .replace(/False/g, "false")
-            .replace(/None/g, "null");
-          return JSON.parse(jsonStr);
+          return JSON.parse(rawData.replace(/'/g, '"').replace(/\bTrue\b/g, "true").replace(/\bFalse\b/g, "false").replace(/\bNone\b/g, "null"));
         } catch {
           return {} as T;
         }
@@ -225,44 +220,34 @@ export function useGenerationStream(generationId: string) {
       es.close();
     });
 
-    es.onerror = () => {
-      // Do not kill the UI. Verify backend status and keep polling if still running.
-      setConnectionRetrying(true);
+    es.addEventListener("output", (e: MessageEvent) => {
+      if (e.data) setRewrittenResume(e.data);
+    });
+
+    const checkStatus = () => {
       fetchGeneration(generationId)
         .then((gen) => {
           if (gen.status === "completed") {
             if (gen.rewritten_resume_text) setRewrittenResume(gen.rewritten_resume_text);
             setDone(true);
             setConnectionRetrying(false);
+            if (pollInterval) clearInterval(pollInterval);
             es.close();
           } else if (gen.status === "failed") {
             setFatalError(gen.error_message || "Generation failed.");
             setConnectionRetrying(false);
+            if (pollInterval) clearInterval(pollInterval);
             es.close();
           }
         })
         .catch(() => null);
+    };
 
-      // Start fallback polling while disconnected
+    es.onerror = () => {
+      setConnectionRetrying(true);
+      checkStatus();
       if (!pollInterval) {
-        pollInterval = setInterval(() => {
-          fetchGeneration(generationId)
-            .then((gen) => {
-              if (gen.status === "completed") {
-                if (gen.rewritten_resume_text) setRewrittenResume(gen.rewritten_resume_text);
-                setDone(true);
-                setConnectionRetrying(false);
-                if (pollInterval) clearInterval(pollInterval);
-                es.close();
-              } else if (gen.status === "failed") {
-                setFatalError(gen.error_message || "Generation failed.");
-                setConnectionRetrying(false);
-                if (pollInterval) clearInterval(pollInterval);
-                es.close();
-              }
-            })
-            .catch(() => null);
-        }, 2500);
+        pollInterval = setInterval(checkStatus, 2500);
       }
     };
 
