@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, useState } from "react";
 import {
   markdownToHtml,
   htmlToMarkdown,
@@ -224,7 +224,11 @@ export default function JobDescriptionInput({
       pushHistory(htmlToMarkdown(editorRef.current));
     }
     handleCopy(e);
-    document.execCommand("delete");
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+    }
     handleInput();
   };
 
@@ -254,6 +258,7 @@ export default function JobDescriptionInput({
           onCopy={handleCopy}
           onCut={handleCut}
           className="textarea custom-scrollbar jd-rich-editor"
+          data-empty={isEmpty}
           data-placeholder="Paste the target job description here (Markdown supported: # headings, - bullets, --- dividers)..."
         />
 
