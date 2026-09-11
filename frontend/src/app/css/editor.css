@@ -27,11 +27,13 @@
   margin-top: 0.25rem;
   flex-shrink: 0;
 }
-.jd-rich-editor:empty:before {
+.jd-rich-editor:empty:before,
+.jd-rich-editor[data-empty="true"]:before {
   content: attr(data-placeholder);
   color: var(--color-muted-fg);
   opacity: 0.5;
   pointer-events: none;
+  display: block;
 }
 .jd-rich-editor h1 {
   font-size: 1.45rem !important;

@@ -130,5 +130,5 @@ export function htmlToMarkdown(root: HTMLElement): string {
     }
   }
 
-  return walk(root).replace(/\n{3,}/g, "\n\n").trim();
+  return walk(root).replace(/\n{3,}/g, "\n\n").replace(/^\n+/, "");
 }

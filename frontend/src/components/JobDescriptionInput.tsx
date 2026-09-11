@@ -36,6 +36,7 @@ export default function JobDescriptionInput({
 }: JobDescriptionInputProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const lastReportedMd = useRef<string>(jobDesc);
+  const [isEmpty, setIsEmpty] = useState(!jobDesc.trim());
   const undoStackRef = useRef<string[]>([]);
   const redoStackRef = useRef<string[]>([]);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -61,6 +62,7 @@ export default function JobDescriptionInput({
 
     lastReportedMd.current = previousMd;
     editorRef.current.innerHTML = markdownToHtml(previousMd);
+    setIsEmpty(!previousMd.trim());
     onChange(previousMd);
     setCaretToEnd(editorRef.current);
   }, [onChange]);
@@ -73,27 +75,38 @@ export default function JobDescriptionInput({
 
     lastReportedMd.current = nextMd;
     editorRef.current.innerHTML = markdownToHtml(nextMd);
+    setIsEmpty(!nextMd.trim());
     onChange(nextMd);
     setCaretToEnd(editorRef.current);
   }, [onChange]);
 
-  // Sync external markdown changes into editor HTML
+  // Sync external markdown changes into editor HTML only when not focused
   useEffect(() => {
-    if (editorRef.current && jobDesc !== lastReportedMd.current) {
-      lastReportedMd.current = jobDesc;
+    if (!editorRef.current) return;
+    const isFocused = document.activeElement === editorRef.current;
+    if (!editorRef.current.innerHTML && jobDesc) {
       editorRef.current.innerHTML = markdownToHtml(jobDesc);
+      setIsEmpty(!jobDesc.trim());
+      lastReportedMd.current = jobDesc;
+    } else if (jobDesc !== lastReportedMd.current) {
+      lastReportedMd.current = jobDesc;
+      if (!isFocused) {
+        editorRef.current.innerHTML = markdownToHtml(jobDesc);
+        setIsEmpty(!jobDesc.trim());
+      }
     }
   }, [jobDesc]);
 
-  // Initial populate
-  useEffect(() => {
-    if (editorRef.current && !editorRef.current.innerHTML && jobDesc) {
-      editorRef.current.innerHTML = markdownToHtml(jobDesc);
-    }
-  }, []);
-
   const handleInput = useCallback(() => {
     if (!editorRef.current) return;
+    const text = editorRef.current.innerText.replace(/\u200B/g, "").trim();
+    if (!text) {
+      editorRef.current.innerHTML = "";
+      setIsEmpty(true);
+    } else {
+      setIsEmpty(false);
+    }
+
     const md = htmlToMarkdown(editorRef.current);
     lastReportedMd.current = md;
     onChange(md);
