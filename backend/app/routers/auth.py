@@ -95,7 +95,7 @@ async def me(request: Request, db: AsyncSession = Depends(get_db)) -> UserRespon
 @router.post("/logout")
 async def logout(response: Response) -> dict:
     """Clear the session cookie to log the user out."""
-    response.delete_cookie("session")
+    response.delete_cookie("session", secure=settings.secure_cookie, samesite="lax")
     return {"message": "logged out"}
 
 
