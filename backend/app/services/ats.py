@@ -124,34 +124,6 @@ class KeywordMatchCriterion(ATSCriterion):
         )
 
 
-class SectionHeaderCriterion(ATSCriterion):
-    """Checks for standard, ATS-parseable section headers (future expansion stub)."""
-
-    name: str = "section_headers"
-    weight: float = 0.5
-
-    def evaluate(self, resume_text: str, context: ATSContext) -> CriterionResult:
-        standard_headers = {"experience", "education", "skills", "projects"}
-        found_headers = set()
-        text_lower = resume_text.lower()
-
-        for h in standard_headers:
-            if re.search(rf"(?m)^\s*(?:##\s*)?{h}\b", text_lower):
-                found_headers.add(h)
-
-        missing = list(standard_headers - found_headers)
-        score = (len(found_headers) / len(standard_headers)) * 100.0
-        warnings = [f"Standard section header '{m.title()}' not clearly detected" for m in missing]
-
-        return CriterionResult(
-            criterion_name=self.name,
-            score=round(score, 1),
-            passed=len(missing) == 0,
-            warnings=warnings,
-            details={"found": list(found_headers), "missing": missing},
-        )
-
-
 class ATS:
     """Deterministic, algorithmic ATS evaluation engine.
 

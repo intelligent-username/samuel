@@ -63,6 +63,7 @@ User (Browser)
 | `services/` | Integration services: `auth.py`, `github_graphql.py`, `pdf_extractor.py`, `encryption.py` (Fernet). |
 | `skills/` | Individual sub-agent skills (prompts & runners). |
 | `orchestrator.py` | Master skill-chain orchestrator executing the 4 sub-agent steps. |
+| `ats.py` | Canonical ATS import path (`from app.ats import ATS`). `services/ats.py` is implementation only. |
 | `utils/llm.py` | Low-level OpenRouter client supporting chat completions and text embeddings. |
 
 ### Frontend (`frontend/src/`)

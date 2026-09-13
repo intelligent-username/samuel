@@ -1,4 +1,6 @@
-from app.services.ats import ATS, ATSContext, ATSCriterion, CriterionResult, KeywordMatchCriterion, SectionHeaderCriterion
+"""Canonical ATS import path. Import ATS from here, not from app.services.ats."""
+
+from app.services.ats import ATS, ATSContext, ATSCriterion, CriterionResult, KeywordMatchCriterion
 
 __all__ = [
     "ATS",
@@ -6,5 +8,4 @@ __all__ = [
     "ATSCriterion",
     "CriterionResult",
     "KeywordMatchCriterion",
-    "SectionHeaderCriterion",
 ]

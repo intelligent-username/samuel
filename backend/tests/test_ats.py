@@ -1,5 +1,5 @@
 import pytest
-from app.ats import ATS, ATSCriterion, ATSContext, CriterionResult, KeywordMatchCriterion, SectionHeaderCriterion
+from app.ats import ATS, ATSCriterion, ATSContext, CriterionResult, KeywordMatchCriterion
 
 
 def test_keyword_match_criterion_full():
