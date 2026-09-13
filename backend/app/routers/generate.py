@@ -1,5 +1,4 @@
 import asyncio
-import html as html_module
 import json
 import logging
 import re
@@ -23,6 +22,7 @@ from app.schemas import GenerateRequest, GenerationResponse
 from app.services.auth import get_session_user_id
 from app.services.encryption import decrypt
 from app.orchestrator import Orchestrator
+from app.services.pdf_renderer import _text_to_html
 from app.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -378,46 +378,6 @@ async def download_pdf(
     )
 
 
-def _weasyprint_backup(rewritten_text: str, generation_id) -> bytes:
-    """BACKUP ONLY — Render a plain PDF from scratch when the in-place PDF edit pipeline is unavailable.
-
-    This produces a generic-looking document (no original fonts/icons/layout).
-    It should almost never run; the primary path is rewrite_pdf_layout().
-    """
-    try:
-        from weasyprint import HTML
-    except ImportError:
-        raise HTTPException(status_code=501, detail="PDF generation not available — weasyprint not installed")
-
-    resume_html = _text_to_html(rewritten_text)
-    html_content = dedent(f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body {{ font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; margin: 0.75in; color: #1a1a1a; }}
-            h1 {{ font-size: 18pt; margin-bottom: 4pt; }}
-            h2 {{ font-size: 13pt; border-bottom: 1px solid #333; padding-bottom: 3pt; margin-top: 16pt; margin-bottom: 6pt; }}
-            h3 {{ font-size: 11pt; font-weight: bold; margin-top: 8pt; }}
-            ul {{ margin: 4pt 0; padding-left: 18pt; }}
-            li {{ margin-bottom: 2pt; }}
-            p {{ margin: 4pt 0; }}
-            .section {{ margin-bottom: 12pt; }}
-          </style>
-        </head>
-        <body>
-          {resume_html}
-        </body>
-        </html>
-    """)
-    try:
-        return HTML(string=html_content).write_pdf()
-    except Exception as e:
-        logger.exception("PDF rendering failed for %s: %s", generation_id, e)
-        raise HTTPException(status_code=500, detail=f"PDF rendering failed: {e}")
-
-
 @router.get("/{generation_id}/preview-html")
 async def preview_html(
     generation_id: uuid.UUID,
@@ -508,80 +468,3 @@ def _sanitize_pdf_filename(title: str | None) -> str:
     if not safe.lower().endswith(".pdf"):
         safe += ".pdf"
     return safe
-
-
-def _text_to_html(text: str) -> str:
-    """Convert plain resume text to basic HTML for PDF rendering."""
-    # If the text contains raw JSON (e.g. from LLM returning JSON with code fences)
-    cleaned_text = text.strip()
-    if '"skills"' in cleaned_text and '"projects"' in cleaned_text:
-        from app.utils.llm import extract_json
-        parsed = extract_json(cleaned_text)
-        s_val = None
-        p_val = None
-        if isinstance(parsed, dict):
-            s_val = parsed.get("skills")
-            p_val = parsed.get("projects")
-        if not s_val or not p_val:
-            m_s = re.search(r'"skills"\s*:\s*"(.*?)(?=",\s*"projects"|"\s*\})', cleaned_text, re.DOTALL)
-            m_p = re.search(r'"projects"\s*:\s*"(.*?)(?="\s*\}|\Z)', cleaned_text, re.DOTALL)
-            if m_s:
-                s_val = m_s.group(1).replace(r'\"', '"').replace(r'\n', '\n')
-            if m_p:
-                p_val = m_p.group(1).replace(r'\"', '"').replace(r'\n', '\n')
-        if s_val is not None and p_val is not None:
-            cleaned_text = f"## Skills\n\n{str(s_val).strip()}\n\n## Projects\n\n{str(p_val).strip()}"
-
-    # Clean up any trailing empty "## Projects" header at the end of the text
-    cleaned_text = re.sub(r"(?i)\n*##\s*projects\s*$", "", cleaned_text.strip())
-    # If "## Projects" is missing but project entries (### ) exist, inject ## Projects before the first entry
-    if not re.search(r"(?i)##\s*projects", cleaned_text):
-        match = re.search(r"\n(?=###\s+)", cleaned_text)
-        if match:
-            idx = match.start()
-            cleaned_text = cleaned_text[:idx] + "\n\n## Projects\n" + cleaned_text[idx:]
-
-    lines = cleaned_text.split("\n")
-    parts = []
-    in_ul = False
-
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            if in_ul:
-                parts.append("</ul>")
-                in_ul = False
-            parts.append("<br>")
-            continue
-
-        if stripped.startswith("# "):
-            if in_ul:
-                parts.append("</ul>")
-                in_ul = False
-            parts.append(f"<h1>{html_module.escape(stripped[2:])}</h1>")
-        elif stripped.startswith("## "):
-            if in_ul:
-                parts.append("</ul>")
-                in_ul = False
-            parts.append(f"<h2>{html_module.escape(stripped[3:])}</h2>")
-        elif stripped.startswith("### "):
-            if in_ul:
-                parts.append("</ul>")
-                in_ul = False
-            parts.append(f"<h3>{html_module.escape(stripped[4:])}</h3>")
-        elif stripped.startswith(("- ", "• ", "* ", "•", "-")):
-            if not in_ul:
-                parts.append("<ul>")
-                in_ul = True
-            content = stripped.lstrip("•-* ").strip()
-            parts.append(f"<li>{html_module.escape(content)}</li>")
-        else:
-            if in_ul:
-                parts.append("</ul>")
-                in_ul = False
-            parts.append(f"<p>{html_module.escape(stripped)}</p>")
-
-    if in_ul:
-        parts.append("</ul>")
-
-    return "\n".join(parts)
