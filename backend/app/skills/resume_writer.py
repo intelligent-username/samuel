@@ -1,6 +1,8 @@
+import asyncio
 import json
 import logging
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from app.schemas import RewrittenResumeSections
@@ -9,6 +11,17 @@ from app.utils.llm import LLMClient, extract_json
 logger = logging.getLogger(__name__)
 
 SKILL_FILE = Path(__file__).parent / "resume_writer.md"
+
+
+@lru_cache(maxsize=4)
+def _load_prompt_cached(path_str: str) -> str:
+    return Path(path_str).read_text(encoding="utf-8")
+
+
+try:
+    _PROMPT_TEMPLATE = SKILL_FILE.read_text(encoding="utf-8")
+except OSError:
+    _PROMPT_TEMPLATE = ""
 
 
 class ResumeWriterSkill:
@@ -39,7 +52,7 @@ class ResumeWriterSkill:
             A dict with 'skills' and 'projects' rewritten strings.
         """
         prompt = (
-            SKILL_FILE.read_text()
+            (_PROMPT_TEMPLATE or _load_prompt_cached(str(SKILL_FILE)))
             .replace("{{SKILLS_SECTION}}", skills_section)
             .replace("{{PROJECTS_SECTION}}", projects_section)
             .replace("{{JD_REQUIREMENTS}}", json.dumps(jd_requirements, indent=2))
@@ -107,6 +120,6 @@ class ResumeWriterSkill:
         if debug_dir:
             debug_path = Path(debug_dir) / "step3_resume_writer.txt"
             debug_path.parent.mkdir(parents=True, exist_ok=True)
-            debug_path.write_text(f"PROMPT:\n{prompt}\n\nRESPONSE:\n{output}")
+            await asyncio.to_thread(debug_path.write_text, f"PROMPT:\n{prompt}\n\nRESPONSE:\n{output}")
 
         return output

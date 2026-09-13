@@ -1,3 +1,4 @@
+import asyncio
 import re
 
 import fitz  # PyMuPDF
@@ -21,6 +22,10 @@ _normalize_header = normalize_header
 
 def extract_text_from_pdf(content: bytes) -> str:
     """Extract all text from a PDF document."""
+    return _extract_text_from_pdf_sync(content)
+
+
+def _extract_text_from_pdf_sync(content: bytes) -> str:
     doc = fitz.open(stream=content, filetype="pdf")
     text_parts = []
     for page in doc:
@@ -29,12 +34,28 @@ def extract_text_from_pdf(content: bytes) -> str:
     return "\n".join(text_parts).strip()
 
 
+async def extract_text_from_pdf_async(content: bytes) -> str:
+    """Non-blocking wrapper; offloads fitz parsing off event loop."""
+    return await asyncio.to_thread(_extract_text_from_pdf_sync, content)
+
+
 def rewrite_pdf_layout(
     original_pdf_bytes: bytes,
     rewritten_text: str,
 ) -> bytes:
-    """Replace Skills and Projects sections in the original PDF in-place.
+    return _rewrite_pdf_layout_sync(original_pdf_bytes, rewritten_text)
 
+
+async def rewrite_pdf_layout_async(original_pdf_bytes: bytes, rewritten_text: str) -> bytes:
+    """Non-blocking wrapper; offloads font/layout I/O off event loop."""
+    return await asyncio.to_thread(_rewrite_pdf_layout_sync, original_pdf_bytes, rewritten_text)
+
+
+def _rewrite_pdf_layout_sync(
+    original_pdf_bytes: bytes,
+    rewritten_text: str,
+) -> bytes:
+    """Replace Skills and Projects sections in the original PDF in-place.
     1. Preserves horizontal ruling lines across the page.
     2. Profiles section styles (headers, subheaders, body text, bullets).
     3. Blanks out the target section bodies via PyMuPDF native redaction.

@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+from functools import lru_cache
 from pathlib import Path
 
 from app.utils.llm import LLMClient, extract_json
@@ -7,6 +9,17 @@ from app.utils.llm import LLMClient, extract_json
 logger = logging.getLogger(__name__)
 
 SKILL_FILE = Path(__file__).parent / "project_matcher.md"
+
+
+@lru_cache(maxsize=4)
+def _load_prompt_cached(path_str: str) -> str:
+    return Path(path_str).read_text(encoding="utf-8")
+
+
+try:
+    _PROMPT_TEMPLATE = SKILL_FILE.read_text(encoding="utf-8")
+except OSError:
+    _PROMPT_TEMPLATE = ""
 
 
 class ProjectMatcherSkill:
@@ -43,7 +56,7 @@ class ProjectMatcherSkill:
             repo_summaries.append(summary)
 
         prompt = (
-            SKILL_FILE.read_text()
+            (_PROMPT_TEMPLATE or _load_prompt_cached(str(SKILL_FILE)))
             .replace("{{JD_REQUIREMENTS}}", json.dumps(jd_requirements, indent=2))
             .replace("{{REPOSITORIES}}", "\n---\n".join(repo_summaries))
         )
@@ -61,6 +74,6 @@ class ProjectMatcherSkill:
         if debug_dir:
             debug_path = Path(debug_dir) / "step2_project_matcher.json"
             debug_path.parent.mkdir(parents=True, exist_ok=True)
-            debug_path.write_text(json.dumps({"prompt": prompt, "response": result}, indent=2))
+            await asyncio.to_thread(debug_path.write_text, json.dumps({"prompt": prompt, "response": result}, indent=2))
 
         return ranked

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { Generation } from "@/lib/types";
 import GenerationStatusChip from "./GenerationStatusChip";
+import { RENAME_FOCUS_MS } from "@/lib/constants";
 
 interface GenerationCardProps {
   gen: Generation;
@@ -41,6 +42,13 @@ export default function GenerationCard({
   const [editValue, setEditValue] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement | null>(null);
+  const renameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (renameTimer.current) clearTimeout(renameTimer.current);
+    };
+  }, []);
 
   const createdAt = new Date(gen.created_at).toLocaleString();
   const snippet = gen.job_description_text?.slice(0, 140).replace(/\n/g, " ");
@@ -50,10 +58,11 @@ export default function GenerationCard({
     setIsEditing(true);
     const initial = gen.title ?? gen.job_description_text?.slice(0, 140).replace(/\n/g, " ") ?? "";
     setEditValue(initial);
-    setTimeout(() => {
+    if (renameTimer.current) clearTimeout(renameTimer.current);
+    renameTimer.current = setTimeout(() => {
       editInputRef.current?.focus();
       editInputRef.current?.select();
-    }, 50);
+    }, RENAME_FOCUS_MS);
   };
 
   const cancelRename = () => {

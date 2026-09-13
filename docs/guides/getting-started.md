@@ -11,7 +11,7 @@ Run Samuel locally with Docker and generate your first rewritten resume within m
 ## Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/samuel.git
+git clone https://github.com/<owner>/<repo>.git
 cd samuel
 ```
 
@@ -38,10 +38,20 @@ Open `.env` and set these variables:
 | :--- | :--- |
 | `GITHUB_CLIENT_ID` | Your GitHub OAuth App client ID |
 | `GITHUB_CLIENT_SECRET` | Your GitHub OAuth App client secret |
-| `OPENAI_API_KEY` or `OPENROUTER_API_KEY` | Your OpenRouter API key |
-| `ENCRYPTION_KEY` | A Fernet-compatible key for encrypting stored tokens (generate with `openssl rand -hex 32`) |
-| `DATABASE_URL` | PostgreSQL connection string (default works with Docker Compose) |
-| `SECRET_KEY` | A random string for session signing |
+| `OPENROUTER_API_KEY` | Server default key for LLM access (users can also save their own key in the dashboard) |
+| `GROQ_API_KEY` | Server default key for Groq LLM fallback |
+| `SESSION_SECRET` | Random string for session signing |
+| `ENCRYPTION_KEY` | Fernet key for encrypting stored tokens (generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`) |
+| `DATABASE_URL` | PostgreSQL connection string (`postgresql+asyncpg://samuel:samuel_dev_only@localhost:5432/samuel` by default) |
+| `ATS_PROVIDER` | ATS engine name (default `llm`) |
+| `ATS_MAX_ITERATIONS` | Max ATS retry loop count, 5-7 (default 6) |
+| `ATS_STAGNATION_WINDOW` | Score window used for early break (default 3) |
+| `ATS_MIN_GAIN` | Min relative gain to keep retrying (default 0.03) |
+| `ATS_THRESHOLD_DEFAULT` | Default ATS target score 0-100 (default 80) |
+| `SECURE_COOKIE` | Set `true` in production so cookies require HTTPS |
+| `DEBUG_DIR` | Directory for prompt and response debug logs |
+| `DEBUG_RETENTION_HOURS` | Hours to keep debug logs (default 24) |
+| `LOG_LEVEL` | Log level (default `INFO`) |
 
 ## Step 4: Start the Application
 
@@ -64,7 +74,9 @@ Open `http://localhost:3000` in your browser. Click "Login with GitHub" and auth
 
 ## Step 7: Generate Your Rewritten Resume
 
-Click "Generate Resume". The frontend shows the progress of each skill step: JD parsing, project matching, resume rewriting, and ATS checking. When the process completes, you can download the rewritten resume as a PDF and review the ATS score and warnings.
+Click "Generate Resume". The frontend shows the progress of each step: JD parsing, LLM-ranked project matching, resume rewriting, and deterministic ATS checking. When the process completes, you can download the rewritten resume as a PDF and review the ATS score and warnings.
+
+PDF output uses PyMuPDF in-place rewrite as primary. WeasyPrint render runs only when no source PDF bytes exist.
 
 ## Development Without Docker
 
@@ -95,6 +107,6 @@ pnpm dev
 | OAuth callback returns 400 "State mismatch" | The `oauth_state` cookie expired or is missing | Click "Login with GitHub" again from the frontend |
 | Repository sync returns 502 | GitHub token is expired or revoked | Log out and log in again to refresh the token |
 | Generation fails with "API key not set" | No OpenRouter API key configured | Save a key via the dashboard or set `OPENROUTER_API_KEY` in `.env` |
-| PDF download returns 501 | WeasyPrint is not installed | Run `pip install weasyprint` in the backend container or install system deps |
+| PDF download returns 501 | No source PDF bytes and WeasyPrint fallback missing | Upload a source PDF first, or install WeasyPrint for fallback renders |
 | Frontend shows CORS errors | Backend is not running or origin mismatch | Ensure the backend runs on port 8000 and the frontend on port 3000 |
 | Database connection error | PostgreSQL is not running or `DATABASE_URL` is wrong | Check Docker Compose logs and verify the connection string |

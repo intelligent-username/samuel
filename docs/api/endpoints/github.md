@@ -55,7 +55,7 @@ curl -X POST "http://localhost:8000/github/sync" \
 
 `GET /github/repos`
 
-Returns all cached repositories for the authenticated user, sorted by repository creation date (newest first).
+Returns all cached repositories for the authenticated user, ordered by `last_push` descending with nulls last.
 
 ### Response
 

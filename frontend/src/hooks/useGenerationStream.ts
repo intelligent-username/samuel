@@ -1,8 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchGeneration, getDownloadUrl } from "@/lib/api";
+import { createGenerationStream, fetchGeneration, getDownloadUrl } from "@/lib/api";
 import type { StepProgress } from "@/lib/types";
+
+const BACKOFF_BASE_MS = 1000;
+const BACKOFF_MAX_MS = 30000;
+
+function parseEventData<T = any>(rawData: any): T {
+  if (typeof rawData === "object" && rawData !== null) return rawData as T;
+  if (typeof rawData !== "string") return {} as T;
+  try {
+    return JSON.parse(rawData);
+  } catch {
+    console.warn("SSE non-JSON payload dropped");
+    return {} as T;
+  }
+}
 
 const INITIAL_STEPS: StepProgress[] = [
   { step: "jd_parser", label: "Analyze Job Description", status: "pending" },
@@ -66,25 +80,18 @@ export function useGenerationStream(generationId: string) {
   // Connect SSE stream
   useEffect(() => {
     if (!generationId || done) return;
-    let pollInterval: NodeJS.Timeout | null = null;
+    const controller = new AbortController();
+    let backoffMs = BACKOFF_BASE_MS;
+    let backoffTimer: ReturnType<typeof setTimeout> | null = null;
+    let fetchPending = false;
+    let closed = false;
 
-    const es = new EventSource(
-      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/generate/${generationId}/stream`,
-      { withCredentials: true }
-    );
+    const es = createGenerationStream(generationId);
 
-    function parseEventData<T = any>(rawData: any): T {
-      if (typeof rawData === "object" && rawData !== null) return rawData as T;
-      if (typeof rawData !== "string") return {} as T;
-      try {
-        return JSON.parse(rawData);
-      } catch {
-        try {
-          return JSON.parse(rawData.replace(/'/g, '"').replace(/\bTrue\b/g, "true").replace(/\bFalse\b/g, "false").replace(/\bNone\b/g, "null"));
-        } catch {
-          return {} as T;
-        }
-      }
+    function clearBackoff() {
+      backoffMs = BACKOFF_BASE_MS;
+      if (backoffTimer) clearTimeout(backoffTimer);
+      backoffTimer = null;
     }
 
     const ensureIterationSteps = (iter: number) => {
@@ -125,6 +132,7 @@ export function useGenerationStream(generationId: string) {
 
     es.addEventListener("step-done", (e: MessageEvent) => {
       setConnectionRetrying(false);
+      clearBackoff();
       const data = parseEventData<{ step?: string; summary?: string }>(e.data);
       if (!data.step) return;
 
@@ -178,6 +186,7 @@ export function useGenerationStream(generationId: string) {
     });
 
     es.addEventListener("done", (e: MessageEvent) => {
+      clearBackoff();
       const data = parseEventData<{ ats_score?: number; ats_scores?: number[]; exit_reason?: string; iterations?: Array<{ iteration: number; score: number }>; threshold?: number; rewritten_resume?: string }>(e.data);
       if (data.rewritten_resume) {
         setRewrittenResume(data.rewritten_resume);
@@ -225,34 +234,58 @@ export function useGenerationStream(generationId: string) {
     });
 
     const checkStatus = () => {
+      if (closed || controller.signal.aborted || fetchPending) return;
+      fetchPending = true;
       fetchGeneration(generationId)
         .then((gen) => {
           if (gen.status === "completed") {
             if (gen.rewritten_resume_text) setRewrittenResume(gen.rewritten_resume_text);
             setDone(true);
             setConnectionRetrying(false);
-            if (pollInterval) clearInterval(pollInterval);
+            clearBackoff();
             es.close();
           } else if (gen.status === "failed") {
             setFatalError(gen.error_message || "Generation failed.");
             setConnectionRetrying(false);
-            if (pollInterval) clearInterval(pollInterval);
+            clearBackoff();
             es.close();
           }
         })
-        .catch(() => null);
+        .catch(() => null)
+        .finally(() => {
+          fetchPending = false;
+        });
+    };
+
+    const scheduleBackoffPoll = () => {
+      if (closed || controller.signal.aborted || backoffTimer) return;
+      const jitter = Math.random() * 500;
+      const delay = Math.min(backoffMs + jitter, BACKOFF_MAX_MS);
+      backoffTimer = setTimeout(() => {
+        backoffTimer = null;
+        checkStatus();
+        backoffMs = Math.min(backoffMs * 2, BACKOFF_MAX_MS);
+        if (!closed && !controller.signal.aborted) scheduleBackoffPoll();
+      }, delay);
     };
 
     es.onerror = () => {
+      if (closed || controller.signal.aborted) return;
       setConnectionRetrying(true);
       checkStatus();
-      if (!pollInterval) {
-        pollInterval = setInterval(checkStatus, 2500);
-      }
+      scheduleBackoffPoll();
     };
 
+    controller.signal.addEventListener("abort", () => {
+      closed = true;
+      clearBackoff();
+      es.close();
+    });
+
     return () => {
-      if (pollInterval) clearInterval(pollInterval);
+      closed = true;
+      controller.abort();
+      clearBackoff();
       es.close();
     };
   }, [generationId, done]);

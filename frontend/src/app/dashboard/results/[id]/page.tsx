@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -19,6 +19,7 @@ import GenerationProgressCard from "@/components/GenerationProgressCard";
 import ResumePreviewer from "@/components/ResumePreviewer";
 import ResultsActionBar from "@/components/ResultsActionBar";
 import AtsDetailsModal from "@/components/AtsDetailsModal";
+import { COPIED_TOAST_MS } from "@/lib/constants";
 
 export default function ResultsPage() {
   const params = useParams<{ id: string }>();
@@ -54,6 +55,13 @@ export default function ResultsPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingJd, setLoadingJd] = useState(false);
   const [copiedJd, setCopiedJd] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    };
+  }, []);
 
   const pdfFileName = generationTitle?.trim()
     ? `${generationTitle.trim().replace(/[/\\:*?"<>|]/g, "").replace(/\.pdf$/i, "")}.pdf`
@@ -117,7 +125,8 @@ export default function ResultsPage() {
             if (jobDescription) {
               navigator.clipboard.writeText(jobDescription);
               setCopiedJd(true);
-              setTimeout(() => setCopiedJd(false), 2000);
+              if (copiedTimer.current) clearTimeout(copiedTimer.current);
+              copiedTimer.current = setTimeout(() => setCopiedJd(false), COPIED_TOAST_MS);
             }
           }}
         />

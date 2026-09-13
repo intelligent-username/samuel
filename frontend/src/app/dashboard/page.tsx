@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -8,6 +8,15 @@ import {
   listResumes, startGeneration, fetchMe, logout, fetchGenerations,
 } from "@/lib/api";
 import type { Generation, Repository, Resume } from "@/lib/types";
+import {
+  JD_MAX,
+  ATS_SCORE_MIN,
+  ATS_SCORE_MAX,
+  JD_PERSIST_DEBOUNCE_MS,
+  ATS_THRESHOLD_DEBOUNCE_MS,
+} from "@/lib/constants";
+
+export { JD_MAX };
 
 import RepoDetailModal from "@/components/RepoDetailModal";
 import DashboardSidebar from "@/components/DashboardSidebar";
@@ -60,20 +69,26 @@ export default function DashboardPage() {
         const v = localStorage.getItem("samuel_ats_threshold");
         if (v !== null) {
           const n = Number(v);
-          if (!Number.isNaN(n)) return Math.max(70, Math.min(100, n));
+          if (!Number.isNaN(n)) return Math.max(ATS_SCORE_MIN, Math.min(ATS_SCORE_MAX, n));
         }
       } catch {}
     }
     return 80;
   });
 
+  const thresholdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    try {
-      localStorage.setItem("samuel_ats_threshold", String(atsThreshold));
-    } catch {}
+    if (thresholdTimer.current) clearTimeout(thresholdTimer.current);
+    thresholdTimer.current = setTimeout(() => {
+      try {
+        localStorage.setItem("samuel_ats_threshold", String(atsThreshold));
+      } catch {}
+    }, ATS_THRESHOLD_DEBOUNCE_MS);
+    return () => {
+      if (thresholdTimer.current) clearTimeout(thresholdTimer.current);
+    };
   }, [atsThreshold]);
 
-  const JD_MAX = 24000;
   const jdLen = jobDesc.length;
   const jdTrimLen = jobDesc.trim().length;
   const wordCount = jobDesc.trim().split(/\s+/).filter(Boolean).length;
@@ -88,19 +103,30 @@ export default function DashboardPage() {
     } catch {}
   }, []);
 
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    try {
-      sessionStorage.setItem("samuel_job_desc", jobDesc);
-    } catch {}
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(() => {
+      try {
+        sessionStorage.setItem("samuel_job_desc", jobDesc);
+      } catch {}
+    }, JD_PERSIST_DEBOUNCE_MS);
+    return () => {
+      if (persistTimer.current) clearTimeout(persistTimer.current);
+    };
   }, [jobDesc]);
 
-  const visibleRepos = repos
-    .filter((r) => !removedIds.has(r.id))
-    .sort((a, b) => {
-      const aTime = a.last_push ? new Date(a.last_push).getTime() : 0;
-      const bTime = b.last_push ? new Date(b.last_push).getTime() : 0;
-      return bTime - aTime;
-    });
+  const visibleRepos = useMemo(
+    () =>
+      repos
+        .filter((r) => !removedIds.has(r.id))
+        .sort((a, b) => {
+          const aTime = a.last_push ? new Date(a.last_push).getTime() : 0;
+          const bTime = b.last_push ? new Date(b.last_push).getTime() : 0;
+          return bTime - aTime;
+        }),
+    [repos, removedIds]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -156,7 +182,10 @@ export default function DashboardPage() {
 
   const flash = (text: string, type: Message["type"] = "info") => setMsg({ text, type });
 
-  const visibleResumes = resumes.filter((r) => !hiddenResumeIds.has(r.id));
+  const visibleResumes = useMemo(
+    () => resumes.filter((r) => !hiddenResumeIds.has(r.id)),
+    [resumes, hiddenResumeIds]
+  );
 
   const handleRemoveResumeOption = (resume: Resume, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -223,7 +252,7 @@ export default function DashboardPage() {
     if (!selectedResumeId) return flash("Please upload or select a resume", "error");
     if (!jobDesc.trim()) return flash("Please paste a job description", "error");
     if (jobDesc.trim().length < 10) return flash("Job description too short (min 10 characters)", "error");
-    if (jobDesc.length > JD_MAX) return flash("Job description too long (max 24000 characters)", "error");
+    if (jobDesc.length > JD_MAX) return flash(`Job description too long (max ${JD_MAX.toLocaleString()} characters)`, "error");
     if (!hasKey && !envConfigured) return flash("Please save your OpenRouter API key first", "error");
 
     setGenerating(true);

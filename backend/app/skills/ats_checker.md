@@ -1,4 +1,6 @@
-# Skill: ATS Checker
+# Skill: ATS Checker (legacy reference)
+
+> Deprecated. The product now uses a deterministic engine as primary. This prompt is kept as legacy reference only. See `backend/app/orchestrator.py:131-142` which calls `ATS()` directly.
 
 ## Role
 You are an ATS (Applicant Tracking System) compatibility expert.

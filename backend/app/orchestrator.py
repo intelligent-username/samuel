@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
+from app.constants import ATS_MAX_ITERATIONS_CAP, ATS_MIN_ITERATIONS
 from app.models.generation import Generation
 from app.models.repository import Repository
 from app.models.user import User
@@ -68,17 +69,22 @@ class Orchestrator:
             raise ValueError("User not found")
         original_text = generation.resume.extracted_text if generation.resume else ""
         sections = extract_sections(original_text)
-        repos = await self._get_repos(user)
-        original_pdf = None
-        if generation.resume and generation.resume.pdf_content:
-            original_pdf = generation.resume.pdf_content
-        else:
-            fallback_asset = Path(__file__).parent / "assets" / "resume.pdf"
-            if fallback_asset.exists():
-                original_pdf = fallback_asset.read_bytes()
-                if generation.resume and not generation.resume.pdf_content:
-                    generation.resume.pdf_content = original_pdf
+        repos, original_pdf = await asyncio.gather(
+            self._get_repos(user),
+            self._load_original_pdf(generation),
+        )
         return generation, user, original_text, sections, repos, original_pdf
+
+    async def _load_original_pdf(self, generation: Generation) -> bytes | None:
+        if generation.resume and generation.resume.pdf_content:
+            return generation.resume.pdf_content
+        fallback_asset = Path(__file__).parent / "assets" / "resume.pdf"
+        if fallback_asset.exists():
+            original_pdf = await asyncio.to_thread(fallback_asset.read_bytes)
+            if generation.resume and not generation.resume.pdf_content:
+                generation.resume.pdf_content = original_pdf
+            return original_pdf
+        return None
 
     async def _run_steps_1_3(self, generation: Generation, repos: list, sections: dict, out: dict) -> AsyncGenerator[dict, None]:
         """Yield jd_parser, project_matcher, resume_writer events. Store results in out."""
@@ -87,7 +93,7 @@ class Orchestrator:
         num_keywords = len(getattr(jd_requirements, "keywords", []) or [])
         yield {"event": "step-done", "data": json.dumps({"step": "jd_parser", "summary": f"Identified {num_keywords} key skills/requirements"})}
         yield {"event": "step-start", "data": json.dumps({"step": "project_matcher", "message": "Matching repositories against requirements..."})}
-        repo_dicts = [{"name": r.name, "description": r.description, "stars": r.stars, "languages": r.languages, "topics": r.topics, "readme_text": r.readme_text} for r in repos]
+        repo_dicts = [{"name": r.name, "description": r.description, "stars": r.stars, "languages": r.languages, "topics": r.topics, "readme_text": r.readme_text} for r in repos[:30]]
         jd_req_dict = jd_requirements.model_dump() if hasattr(jd_requirements, "model_dump") else jd_requirements
         ranked_projects = await ProjectMatcherSkill().run(jd_req_dict, repo_dicts, self.llm, self.debug_dir)
         yield {"event": "step-done", "data": json.dumps({"step": "project_matcher", "summary": f"Ranked {len(ranked_projects)} matching projects"})}
@@ -103,19 +109,19 @@ class Orchestrator:
         yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": "Skills and Projects rewritten to match job profile"})}
         out.update({"jd_requirements": jd_requirements, "jd_req_dict": jd_req_dict, "ranked_projects": ranked_projects, "writer": writer, "new_skills": new_skills, "new_projects": new_projects, "full_rewritten_text": full_text})
 
-    def _render_pdf_bytes(self, original_pdf: bytes | None, new_skills: str, new_projects: str, full_text: str) -> bytes | None:
+    async def _render_pdf_bytes(self, original_pdf: bytes | None, new_skills: str, new_projects: str, full_text: str) -> bytes | None:
         """Rewrite original PDF in place, else render from text."""
         if original_pdf:
             try:
                 rewritten_md = f"## Skills\n{new_skills}\n\n## Projects\n{new_projects}"
-                return rewrite_pdf_layout(original_pdf, rewritten_md)
+                return await asyncio.to_thread(rewrite_pdf_layout, original_pdf, rewritten_md)
             except Exception as e:
                 logger.warning("In-place PDF rewrite failed, keeping original: %s", type(e).__name__)
                 return original_pdf
         try:
             from app.services.pdf_renderer import render_resume_to_pdf
 
-            return render_resume_to_pdf(full_text)
+            return await asyncio.to_thread(render_resume_to_pdf, full_text)
         except Exception as e:
             logger.warning("PDF render failed: %s", type(e).__name__)
             return None
@@ -153,7 +159,7 @@ class Orchestrator:
         )
         ats_score = ats_report.get("score", 100)
         yield {"event": "step-done", "data": json.dumps({"step": "ats_checker", "summary": f"ATS Score: {ats_score}/100"})}
-        pdf_bytes = self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
+        pdf_bytes = await self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
         generation.rewritten_resume_text = full_rewritten_text
         generation.pdf_content = pdf_bytes
         generation.ats_report = ats_report
@@ -197,7 +203,7 @@ class Orchestrator:
             new_projects = out["new_projects"]
             full_rewritten_text = out["full_rewritten_text"]
             yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Running deterministic ATS compatibility audit..."})}
-            pdf_bytes = self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
+            pdf_bytes = await self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
             ats_result = await self._evaluate_ats(pdf_bytes, full_rewritten_text, generation.job_description_text)
             ats_score = ats_result.score
             ats_report = {"score": ats_score, "details": ats_result.details, "raw_report": ats_result.raw_report}
@@ -223,7 +229,7 @@ class Orchestrator:
         generation.status = "running"
         max_iter = ats_max_iterations if ats_max_iterations is not None else settings.ats_max_iterations
         try:
-            max_iter = max(5, min(7, int(max_iter)))
+            max_iter = max(ATS_MIN_ITERATIONS, min(ATS_MAX_ITERATIONS_CAP, int(max_iter)))
         except Exception:
             max_iter = settings.ats_max_iterations
         threshold = int(ats_threshold)
@@ -241,7 +247,7 @@ class Orchestrator:
         new_projects = out["new_projects"]
         full_rewritten_text = out["full_rewritten_text"]
         yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Running deterministic ATS compatibility audit..."})}
-        pdf_bytes = self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
+        pdf_bytes = await self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
         ats_result = await self._evaluate_ats(pdf_bytes, full_rewritten_text, generation.job_description_text)
         scores: list[int] = [ats_result.score]
         iterations_detail: list[dict] = [{"iteration": 1, "score": ats_result.score}]
@@ -281,7 +287,7 @@ class Orchestrator:
             new_projects = rewritten_sections.get("projects", "").strip() or new_projects
             full_rewritten_text = replace_sections_in_text(original_text, new_skills, new_projects)
             yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": f"Refined Skills/Projects (iteration {iteration})"})}
-            pdf_bytes = self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
+            pdf_bytes = await self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
             ats_result = await self._evaluate_ats(pdf_bytes, full_rewritten_text, generation.job_description_text)
             scores.append(ats_result.score)
             iterations_detail.append({"iteration": iteration, "score": ats_result.score})

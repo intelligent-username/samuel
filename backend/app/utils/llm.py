@@ -9,7 +9,12 @@ logger = logging.getLogger(__name__)
 
 
 def extract_json(text: str) -> dict | list | None:
-    """Best-effort extraction of JSON from LLM output (strips code fences, prose, and handles unescaped newlines)."""
+    """Pull JSON out of LLM text.
+
+    Strips markdown fences, then tries direct parse. Falls back to regex
+    object slice and newline repair, then array slice for project lists.
+    Returns None when no slice parses. Callers save prompts and replies
+    as debug JSON under settings.debug_dir."""
     text = text.strip()
     if text.startswith("```"):
         text = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", text)
@@ -72,6 +77,12 @@ OPENROUTER_MODELS = [
 
 _RETRYABLE = {429, 500, 502, 503, 504}
 
+try:
+    from app.constants import LLM_OVERALL_TIMEOUT_S as LLM_OVERALL_TIMEOUT
+except ImportError:
+    LLM_OVERALL_TIMEOUT = 90
+OPENROUTER_FALLBACK_MODELS = 1
+
 
 class LLMClient:
     def __init__(self, api_key: str, groq_api_key: str | None = None):
@@ -99,6 +110,9 @@ class LLMClient:
         )
 
     async def complete(self, prompt: str, response_model: type | None = None) -> str | dict:
+        return await asyncio.wait_for(self._complete_bounded(prompt, response_model), timeout=LLM_OVERALL_TIMEOUT)
+
+    async def _complete_bounded(self, prompt: str, response_model: type | None = None) -> str | dict:
         content = None
         if self._groq_client is not None:
             content = await self._complete_groq(prompt)
@@ -158,6 +172,8 @@ class LLMClient:
                     return None
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]["content"]
+            except asyncio.CancelledError:
+                raise
             except httpx.TimeoutException:
                 if attempt == 2:
                     logger.warning("LLM request timed out (model=%s)", model)
@@ -186,8 +202,8 @@ class LLMClient:
         return None
 
     async def _complete_openrouter(self, prompt: str) -> str:
-        # Try each OpenRouter model sequentially (single `model` field) — more reliable than `models` array which 400s
-        for model in OPENROUTER_MODELS:
+        # Groq-first; single OpenRouter fallback model keeps worst case bounded
+        for model in OPENROUTER_MODELS[:OPENROUTER_FALLBACK_MODELS]:
             content = await self._chat(self._client, model, prompt)
             if content is not None:
                 return content

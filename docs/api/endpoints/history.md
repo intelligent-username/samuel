@@ -8,6 +8,8 @@ Endpoints for browsing and retrieving past resume generations. All endpoints req
 | :--- | :--- | :--- |
 | `GET` | `/history/` | List recent generations (last 20, newest first) |
 | `GET` | `/history/{id}` | Get full details for a specific generation |
+| `PATCH` | `/history/{id}` | Update a generation title |
+| `DELETE` | `/history/{id}` | Delete a generation |
 
 ## List Generations
 
@@ -35,7 +37,7 @@ Returns the 20 most recent generations for the authenticated user, ordered by cr
 ]
 ```
 
-The list view omits `rewritten_resume_text` for brevity. Use `GET /history/{id}` for the full record.
+The list view returns the full `GenerationResponse` shape for each item, including `rewritten_resume_text`, `ats_report`, `ats_scores`, `iterations`, `ats_threshold`, `ats_max_iterations`, and `ats_exit_reason`. Use `GET /history/{id}` for a single record.
 
 #### 401 Unauthorized
 
@@ -103,5 +105,39 @@ Returns the full generation record including the rewritten resume text and the A
 
 ```bash
 curl -X GET "http://localhost:8000/history/660e8400-e29b-41d4-a716-446655440001" \
+  -H "Cookie: session=..."
+```
+
+## Update Generation Title
+
+`PATCH /history/{generation_id}`
+
+Updates the custom title for a generation. The body holds a `title` field, max 255 chars. An empty title clears the stored value.
+
+```json
+{
+  "title": "Backend role at Acme"
+}
+```
+
+### Example
+
+```bash
+curl -X PATCH "http://localhost:8000/history/660e8400-e29b-41d4-a716-446655440001" \
+  -H "Cookie: session=..." \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Backend role at Acme"}'
+```
+
+## Delete Generation
+
+`DELETE /history/{generation_id}`
+
+Deletes one generation and its debug files. Returns `{"message": "Generation deleted"}`.
+
+### Example
+
+```bash
+curl -X DELETE "http://localhost:8000/history/660e8400-e29b-41d4-a716-446655440001" \
   -H "Cookie: session=..."
 ```

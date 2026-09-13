@@ -1,0 +1,9 @@
+export const JD_MAX = 24000;
+export const ATS_SCORE_MIN = 70;
+export const ATS_SCORE_MAX = 100;
+export const COPIED_TOAST_MS = 2000;
+export const RENAME_FOCUS_MS = 50;
+export const JD_PERSIST_DEBOUNCE_MS = 500;
+export const ATS_DEFAULT = 80;
+export const POLL_INTERVAL = 2500;
+export const ATS_THRESHOLD_DEBOUNCE_MS = 500;

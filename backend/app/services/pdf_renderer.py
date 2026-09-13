@@ -1,5 +1,6 @@
 import html as html_module
 import re
+from functools import lru_cache
 from textwrap import dedent
 
 
@@ -15,8 +16,12 @@ _CSS = dedent("""
 """)
 
 
+@lru_cache(maxsize=128)
 def _text_to_html(text: str) -> str:
-    """Convert plain resume text to basic HTML for PDF rendering."""
+    """Turn resume text into HTML for preview and WeasyPrint fallback.
+
+    Recovers JSON shaped as {"skills": ..., "projects": ...} via
+    extract_json with regex fallback, then maps markdown lines to HTML."""
     cleaned_text = text.strip()
     if '"skills"' in cleaned_text and '"projects"' in cleaned_text:
         from app.utils.llm import extract_json

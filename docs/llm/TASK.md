@@ -1,37 +1,29 @@
-# The Task of the LLMs
+# What the pipeline does
 
-## Step 1
+Samuel rewrites the Skills and Projects sections of a resume to match a job description. It leaves all other sections in place.
 
-The LLMs read through the raw PDF code to detect which section is for the projects and which is for the skills.
+## Step 1: Parse the job description
 
-## Step 2
+The JD Parser skill reads the pasted job text. It returns structured needs: hard needs, preferred skills, seniority, and keywords.
 
-The LLMs get rid of the old formatting and words while keeping everything else in place
+## Step 2: Rank projects
 
-## Step 3
+The Project Matcher skill compares cached GitHub repos to those needs. It uses LLM ranking, not vector search. It returns repos ordered by fit, with reasons.
 
-The LLMs use various skills to extract information about your projects based on the returns of the GraphQL API.
-
-They then rank which projects would fit the best on the resume and how to order your skills. This will ensure you get the best chance of passing ATS and for a recruiter to immediately see what skills you have and how you've used them.
-
-The points under each project will roughly follow this format:
+Each project bullet follows this shape:
 
 - What was done
-- With what (buzzword/skill goes here, based on job description)
-- Why it was done (non-technical reason, numbers are not necessary)
+- Which skill it shows, taken from the job text
+- Why it mattered, in plain terms
 
-## Step 4
+## Step 3: Rewrite Skills and Projects
 
-The LLMs write the newly-tailored sections into the resume
+The Resume Writer skill writes new Skills and Projects text. It only uses skills and projects found in the resume or synced repos. It does not invent history.
 
-## Step 5
+## Step 4: Check ATS score
 
-The resume is returned.
+A deterministic ATS engine scores the rewritten text. When a threshold is set, the writer refines the text until the score passes or the loop ends. See `backend/app/orchestrator.py:87-142`.
 
-At this point, you can give feedback (like rewrite this), edit the resume yourself, change page dimensions, etc.
+## Step 5: Return the result
 
-## Step 6
-
-Download the PDF.
-
-User may clear your history.
+The app stores the rewritten text, the ATS report, and the PDF bytes. The results page shows the preview and the ATS score.

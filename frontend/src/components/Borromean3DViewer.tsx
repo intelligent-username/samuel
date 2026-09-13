@@ -59,8 +59,8 @@ export default function Borromean3DViewer({
         precision: "highp",
       });
 
-      // 24/7 Super-Sampling (2.5x - 4x native pixel density for ultra-sharp anti-aliased edges)
-      const getOptimalPixelRatio = () => Math.max((window.devicePixelRatio || 1) * 2, 2.5);
+      // Cap pixel ratio to keep GPU load bounded (was 2.5x supersample)
+      const getOptimalPixelRatio = () => Math.min(window.devicePixelRatio || 1, 2);
       renderer.setPixelRatio(getOptimalPixelRatio());
       renderer.setSize(initialW, initialH, true);
       if ("outputColorSpace" in renderer && THREE.SRGBColorSpace) {
@@ -299,9 +299,10 @@ export default function Borromean3DViewer({
 
       // 7. Dynamic Multi-Directional Organic Animation Loop
       let time = 0;
+      let visible = true;
       const animate = () => {
         animId = requestAnimationFrame(animate);
-
+        if (!visible) return;
         time += 0.012 * speedMult;
 
         // Incommensurate harmonic oscillations create continuous, non-repeating 3D tumble
@@ -345,9 +346,18 @@ export default function Borromean3DViewer({
       ro.observe(container);
       window.addEventListener("resize", updateResolution);
 
+      const io = new IntersectionObserver(
+        (entries) => {
+          visible = entries[0]?.isIntersecting ?? true;
+        },
+        { threshold: 0 }
+      );
+      io.observe(container);
+
       cleanupFn = () => {
         cancelAnimationFrame(animId);
         ro.disconnect();
+        io.disconnect();
         window.removeEventListener("resize", updateResolution);
 
         if (interactive) {

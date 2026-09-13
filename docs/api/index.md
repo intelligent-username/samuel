@@ -39,10 +39,16 @@ This API uses GitHub OAuth with session cookies. All endpoints except `GET /auth
 | `GET` | `/resume/resumes` | List uploaded resumes |
 | `POST` | `/generate/` | Start a new resume generation |
 | `GET` | `/generate/{id}/stream` | SSE stream for generation progress |
+| `POST` | `/generate/{id}/stop` | Stop a running generation |
+| `POST` | `/generate/{id}/retry` | Reset a failed generation to pending |
+| `GET` | `/generate/{id}/preview-html` | Preview rewritten resume as styled HTML |
 | `GET` | `/generate/{id}/download` | Download the rewritten resume as PDF |
 | `GET` | `/history/` | List recent generations |
 | `GET` | `/history/{id}` | Get generation details |
+| `PATCH` | `/history/{id}` | Update a generation title |
+| `DELETE` | `/history/{id}` | Delete a generation |
+| `DELETE` | `/resume/resumes/{id}` | Delete a resume and its generations |
 
 ## SSE Streaming Skill Chain
 
-The generation pipeline runs four LLM calls in sequence through a skill chain orchestrator. The frontend connects to the SSE stream at `GET /generate/{id}/stream` after creating a generation. The stream emits typed events for each step: `step-start`, `step-done`, intermediate `output`, `done`, and `error`. The four steps are: JD Parser (extracts requirements from the job description), Project Matcher (ranks GitHub repos against those requirements), Resume Writer (rewrites skills and projects), and ATS Checker (evaluates the rewritten resume for applicant tracking system compatibility).
+The generation pipeline runs three LLM skills plus a deterministic ATS loop through the orchestrator. The frontend connects to the SSE stream at `GET /generate/{id}/stream` after creating a generation. The stream emits typed events for each step: `step-start`, `step-done`, `warning`, `ats_evaluation`, `ats_loop`, `ats_stagnation`, `output`, `done`, and `error`. The three LLM steps are: JD Parser (extracts requirements from the job description), Project Matcher (ranks GitHub repos against those requirements), and Resume Writer (rewrites skills and projects). The ATS stage scores the result with `ATS()` and retries until `threshold_met`, `stagnation`, or `max_iterations`, or finishes as `single_pass` when no threshold is set.

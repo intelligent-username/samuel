@@ -25,6 +25,8 @@ The backend redirects the user to GitHub for authorization, receives a callback 
 
 The `session` cookie is HTTP-only and uses `SameSite=Lax`. The frontend includes it in requests by setting `credentials: "include"` on all fetch calls. The backend validates the session token on every authenticated endpoint. If the cookie is missing or invalid, the endpoint returns a 401 response.
 
+Session signing uses `SESSION_SECRET` from the environment. Stored GitHub and OpenRouter tokens are encrypted at rest with `ENCRYPTION_KEY` (Fernet). Generate it with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Set `SECURE_COOKIE=true` in production so cookies require HTTPS.
+
 ## Logout
 
 `POST /auth/logout` clears the `session` cookie. No server-side session store is invalidated. The frontend should redirect to the login page after calling this endpoint.

@@ -88,6 +88,10 @@ export function getDownloadUrl(generationId: string): string {
   return `${API}/generate/${generationId}/download`;
 }
 
+export function createGenerationStream(generationId: string): EventSource {
+  return new EventSource(`${API}/generate/${generationId}/stream`, { withCredentials: true });
+}
+
 export async function fetchGenerations(): Promise<Generation[]> {
   return fetchApi<Generation[]>("/history/");
 }

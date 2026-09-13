@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import BorromeanLoader from "@/components/BorromeanLoader";
 
 interface JobDescriptionDrawerProps {
@@ -20,6 +20,21 @@ export default function JobDescriptionDrawer({
   copied,
   onCopy,
 }: JobDescriptionDrawerProps) {
+  const prevFocus = useRef<Element | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    prevFocus.current = document.activeElement;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (prevFocus.current instanceof HTMLElement) prevFocus.current.focus();
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const charCount = jobDescription ? jobDescription.length.toLocaleString() : 0;

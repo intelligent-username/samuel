@@ -1,7 +1,11 @@
 "use client";
 
 import React from "react";
-import Borromean3DViewer from "@/components/Borromean3DViewer";
+import dynamic from "next/dynamic";
+
+const Borromean3DViewer = dynamic(() => import("@/components/Borromean3DViewer"), {
+  ssr: false,
+});
 
 interface BorromeanLoaderProps {
   size?: number;

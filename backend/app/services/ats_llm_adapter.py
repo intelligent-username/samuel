@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 from app.schemas.ats import ATSResult
@@ -23,7 +24,7 @@ class ATSLLMAdapter(ATSProvider):
                 try:
                     from app.services.pdf_extractor import extract_text_from_pdf
 
-                    extracted = extract_text_from_pdf(pdf_bytes)
+                    extracted = await asyncio.to_thread(extract_text_from_pdf, pdf_bytes)
                     if extracted and extracted.strip():
                         text = extracted
                     else:

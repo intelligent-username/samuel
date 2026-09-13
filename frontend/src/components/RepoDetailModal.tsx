@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -16,6 +16,19 @@ interface RepoDetailModalProps {
 
 export default function RepoDetailModal({ repo, onClose }: RepoDetailModalProps) {
   const [tab, setTab] = useState<"overview" | "readme">("overview");
+  const prevFocus = useRef<Element | null>(null);
+
+  useEffect(() => {
+    prevFocus.current = document.activeElement;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (prevFocus.current instanceof HTMLElement) prevFocus.current.focus();
+    };
+  }, [onClose]);
   const total = repo.languages ? Object.values(repo.languages).reduce((a, b) => a + b, 0) : 0;
 
   return (

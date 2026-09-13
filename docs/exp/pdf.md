@@ -1,34 +1,23 @@
-# Expectations
+# PDF handling
 
-These are the standard expectations of the backend for different aspects of the project.
+The backend reads and writes resume PDFs with PyMuPDF (`fitz`). WeasyPrint is a fallback only.
 
-## 1. Resume PDF Page Dimensions & Editor Guidelines
+## 1. Page sizes
 
-Resumes have standard page dimensions based on the following job application regions:
+The app accepts US Letter and A4 pages. It warns when Skills or Projects headers are missing and falls back to full text.
 
-|    Standard   | Dimensions (Points) | Dimensions (Inches) |  Dimensions (mm) |         Region        |
-| ------------- | ------------------- | ------------------- | ---------------- | --------------------- |
-| **US Letter** |    `612 x 792 pt`   |      8.5" x 11"     | 215.9 x 279.4 mm | United States, Canada |
-|    **A4**     |    `595 x 842 pt`   |    8.27" x 11.69"   |   210 x 297 mm   |     Rest of World     |
+## 2. Render path
 
-> The system will accept pages with alternative sizes but will give a warning.
+Primary path is `rewrite_pdf_layout()` in `backend/app/services/pdf_extractor.py`. It edits the source PDF in place. It keeps fonts, icons, layout, and ruling lines. It blanks the Skills and Projects areas and writes new text with matched styles.
 
----
+Fallback path is `render_resume_to_pdf()` in `backend/app/services/pdf_renderer.py`. It builds a plain PDF with WeasyPrint. It runs only when no source PDF bytes exist. See `backend/app/orchestrator.py:155-163,251-257`.
 
-## 2. Editor Layout Behavior
+The preview endpoint `GET /generate/{id}/preview-html` returns styled HTML for the in-app viewer. The download endpoint defaults to inline display and uses attachment only with `?download=true` or `?download=1`.
 
-The stream-editor (`b.py`) dynamically reads document properties to ensure replacement edits fit target constraints perfectly:
+## 3. Common sense
 
-* **Visible Boundaries (`CropBox` / `page.rect`)**: Used as the hard boundary for rendering text. The editor checks height limits (`page.rect.height`) to prevent bottom-of-the-page overflow.
-* **Layout Geometry Protection**: Rather than using static margins, the editor analyzes the target paragraph's existing coordinates (`first_line_x`, `subsequent_x`, `y_first`, `y_last`) to anchor alignment and wrap text correctly.
-* **Tab Stops**: Indentation formatting like tabs (`\t`) are dynamically parsed into relative offsets (36pt per tab) and added directly to the anchor offsets, ensuring robust alignment across any page size specification.
+Rules the backend follows when writing PDFs:
 
----
-
-## 3. Common Sense
-
-Rules that the backend will adhere to when producing PDFs but won't force the user to follow.
-
-- Lines don't overflow off the page (wrap instead)
-- Resumes are <= 2 pages long
+- Lines wrap instead of running off the page
+- Resumes stay at most 2 pages long
 - No page numbers

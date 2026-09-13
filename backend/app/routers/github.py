@@ -43,14 +43,19 @@ async def sync_repos(request: Request, db: AsyncSession = Depends(get_db)) -> di
         raise HTTPException(status_code=502, detail=f"GitHub sync failed: {type(e).__name__}: {e}")
 
     now = datetime.now(timezone.utc)
-    for repo_info in repos_data:
-        existing = await db.execute(
+    ids = [r["github_repo_id"] for r in repos_data]
+    existing_by_id: dict = {}
+    if ids:
+        result = await db.execute(
             select(Repository).where(
                 Repository.user_id == user.id,
-                Repository.github_repo_id == repo_info["github_repo_id"],
+                Repository.github_repo_id.in_(ids),
             )
         )
-        repo = existing.scalar_one_or_none()
+        for repo in result.scalars().all():
+            existing_by_id[repo.github_repo_id] = repo
+    for repo_info in repos_data:
+        repo = existing_by_id.get(repo_info["github_repo_id"])
         if repo:
             for key, val in repo_info.items():
                 setattr(repo, key, val)

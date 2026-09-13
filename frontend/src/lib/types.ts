@@ -1,6 +1,8 @@
 export interface User {
   id: string;
   github_username: string;
+  /** @deprecated Unused in backend `UserResponse`. Pending dead-code removal. */
+  has_openrouter_key: boolean;
 }
 
 /** Cached repo row. Mirrors backend `RepositoryResponse`. */
@@ -41,6 +43,8 @@ export interface Generation {
   id: string;
   status: "pending" | "running" | "completed" | "failed";
   job_description_text: string;
+  /** @deprecated Unused. Backend uses `job_description_text`. Pending dead-code removal. */
+  target_jd?: string;
   title?: string | null;
   rewritten_resume_text: string | null;
   /**
@@ -81,4 +85,23 @@ export interface ATSReport {
   issues: string[];
   warnings: string[];
   missing_keywords: string[];
+}
+
+/** @deprecated Unused. Pending dead-code removal. */
+export interface StepEvent {
+  step: string;
+  message: string;
+  summary?: string;
+  status: "pending" | "active" | "done" | "error";
+}
+
+/** @deprecated Unused. Pending dead-code removal. */
+export interface DoneEvent {
+  generation_id: string;
+  ats_score: number;
+  ats_scores?: number[] | null;
+  exit_reason?: string | null;
+  iterations?: Array<{ iteration: number; score: number }> | null;
+  rewritten_resume: string;
+  pdf_url: string;
 }

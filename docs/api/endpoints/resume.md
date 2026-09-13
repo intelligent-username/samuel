@@ -10,6 +10,7 @@ Endpoints for uploading PDF resumes and managing OpenRouter API keys. All endpoi
 | `POST` | `/resume/key` | Save an encrypted OpenRouter API key |
 | `GET` | `/resume/key-status` | Check whether an API key is available |
 | `GET` | `/resume/resumes` | List all uploaded resumes |
+| `DELETE` | `/resume/resumes/{id}` | Delete a resume and its generations |
 
 ## Upload Resume
 
@@ -188,5 +189,18 @@ Returns all uploaded resumes for the authenticated user, ordered by upload date 
 
 ```bash
 curl -X GET "http://localhost:8000/resume/resumes" \
+  -H "Cookie: session=..."
+```
+
+## Delete Resume
+
+`DELETE /resume/resumes/{resume_id}`
+
+Deletes one uploaded resume and its linked generations. Returns `{"message": "Resume deleted"}`.
+
+### Example
+
+```bash
+curl -X DELETE "http://localhost:8000/resume/resumes/550e8400-e29b-41d4-a716-446655440000" \
   -H "Cookie: session=..."
 ```

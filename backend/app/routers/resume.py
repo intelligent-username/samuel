@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 
@@ -41,7 +42,7 @@ async def upload_resume(request: Request, file: UploadFile, db: AsyncSession = D
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
 
     try:
-        text = extract_text_from_pdf(content)
+        text = await asyncio.to_thread(extract_text_from_pdf, content)
         sections = extract_sections(text)  # for preview
         # remove internal flags before returning
         preview = {k: v for k, v in sections.items() if k in ("skills", "projects")}

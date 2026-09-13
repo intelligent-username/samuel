@@ -4,6 +4,7 @@ import logging
 import re
 import urllib.parse
 import uuid
+from functools import lru_cache
 from textwrap import dedent
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
+from app.constants import JD_MAX_CHARS
 from app.database import get_db, async_session_factory
 from app.models.generation import Generation
 from app.models.resume import Resume
@@ -70,15 +72,15 @@ async def start_generation(
     if not env_key and not user.openrouter_api_key:
         raise HTTPException(status_code=400, detail="OpenRouter API key not configured")
 
-    # Defense in depth — even if schema is bypassed, enforce 24000
+    # Defense in depth — even if schema is bypassed, enforce JD_MAX_CHARS
     jd_text = body.job_description.strip()
     if not jd_text:
         raise HTTPException(status_code=422, detail="Please paste a job description")
-    if len(jd_text) > 24000:
-        raise HTTPException(status_code=422, detail="Job description too long (max 24000 characters)")
+    if len(jd_text) > JD_MAX_CHARS:
+        raise HTTPException(status_code=422, detail=f"Job description too long (max {JD_MAX_CHARS} characters)")
     # Also handle raw body before strip (if validator not returning stripped)
-    if len(body.job_description) > 24000:
-        raise HTTPException(status_code=422, detail="Job description too long (max 24000 characters)")
+    if len(body.job_description) > JD_MAX_CHARS:
+        raise HTTPException(status_code=422, detail=f"Job description too long (max {JD_MAX_CHARS} characters)")
 
     generation = Generation(
         user_id=user_id,
@@ -221,7 +223,6 @@ async def stream_generation(
                         # Persist debug path even on failure if orchestrator set it
                         if not gen.skill_chain_debug_path:
                             from pathlib import Path
-                            from app.config import settings
                             gen.skill_chain_debug_path = str(Path(settings.debug_dir) / str(generation_id))
                         await retry_db.commit()
             except Exception:
@@ -309,7 +310,12 @@ async def download_pdf(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Download the rewritten resume as a PDF document."""
+    """Send the rewritten resume as PDF bytes.
+
+    Uses stored bytes when present. Rewrites the source PDF in place
+    with PyMuPDF when possible. Falls back to bundled
+    app/assets/resume.pdf when the record has no PDF bytes. Display
+    defaults to inline; uses attachment only with ?download=true|1."""
     user_id = get_session_user_id(request)
     if user_id:
         result = await db.execute(
@@ -337,9 +343,9 @@ async def download_pdf(
     if generation.pdf_content:
         pdf_bytes = generation.pdf_content
     elif generation.resume and generation.resume.pdf_content:
-        from app.services.pdf_extractor import rewrite_pdf_layout
+        from app.services.pdf_extractor import rewrite_pdf_layout_async
         try:
-            pdf_bytes = rewrite_pdf_layout(generation.resume.pdf_content, generation.rewritten_resume_text or "")
+            pdf_bytes = await rewrite_pdf_layout_async(generation.resume.pdf_content, generation.rewritten_resume_text or "")
         except Exception:
             pdf_bytes = generation.resume.pdf_content
         generation.pdf_content = pdf_bytes
@@ -349,10 +355,10 @@ async def download_pdf(
         from pathlib import Path
         fallback_path = Path(__file__).parent.parent / "assets" / "resume.pdf"
         if fallback_path.exists():
-            from app.services.pdf_extractor import rewrite_pdf_layout
-            raw_pdf = fallback_path.read_bytes()
+            from app.services.pdf_extractor import rewrite_pdf_layout_async
+            raw_pdf = await asyncio.to_thread(fallback_path.read_bytes)
             try:
-                pdf_bytes = rewrite_pdf_layout(raw_pdf, generation.rewritten_resume_text or "")
+                pdf_bytes = await rewrite_pdf_layout_async(raw_pdf, generation.rewritten_resume_text or "")
             except Exception:
                 pdf_bytes = raw_pdf
             generation.pdf_content = pdf_bytes
@@ -384,7 +390,10 @@ async def preview_html(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Return clean styled HTML of the rewritten resume for the in-app previewer."""
+    """Return styled HTML for the in-app previewer.
+
+    Builds HTML from rewritten text with the shared _text_to_html
+    helper, which recovers skills/projects JSON via regex fallback."""
     user_id = get_session_user_id(request)
     if user_id:
         result = await db.execute(
@@ -457,8 +466,12 @@ async def preview_html(
     )
 
 
+@lru_cache(maxsize=128)
 def _sanitize_pdf_filename(title: str | None) -> str:
-    """Format PDF download filename from generation title or fallback to generated_resume.pdf."""
+    """Build a safe PDF filename from the generation title.
+
+    Strips path separators and reserved chars, trims dots and spaces,
+    appends .pdf when missing. Falls back to generated_resume.pdf."""
     if not title or not title.strip():
         return "generated_resume.pdf"
     safe = re.sub(r'[\/\\:*?"<>|\x00-\x1f]', "", title.strip())

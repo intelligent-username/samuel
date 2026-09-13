@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pathlib import Path
 import re
 
@@ -19,8 +20,9 @@ FONT_MAP = {
 }
 
 
+@lru_cache(maxsize=256)
 def map_font(pdf_font_name: str) -> str:
-    """Map a PDF font name to the closest base-14 font PyMuPDF can write with."""
+    """Map PDF font name to base-14."""
     if not pdf_font_name:
         return "helv"
     name = re.sub(r"^[A-Z]{6}\+", "", pdf_font_name)
