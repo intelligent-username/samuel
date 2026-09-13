@@ -90,15 +90,14 @@ def _text_to_html(text: str) -> str:
     return "\n".join(parts)
 
 
-def _build_html(resume_html: str, css: str | None = None) -> str:
-    css_block = css if css is not None else _CSS
+def _build_html(resume_html: str) -> str:
     return dedent(f"""\
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <style>
-            {css_block}
+            {_CSS}
           </style>
         </head>
         <body>
@@ -116,15 +115,4 @@ def render_resume_to_pdf(resume_text: str) -> bytes:
         raise RuntimeError("weasyprint not installed") from e
     resume_html = _text_to_html(resume_text)
     html_content = _build_html(resume_html)
-    return HTML(string=html_content).write_pdf()
-
-
-def render_resume_to_pdf_with_css(resume_text: str, css: str | None = None) -> bytes:
-    """Render resume_text to PDF bytes with optional custom CSS."""
-    try:
-        from weasyprint import HTML
-    except ImportError as e:
-        raise RuntimeError("weasyprint not installed") from e
-    resume_html = _text_to_html(resume_text)
-    html_content = _build_html(resume_html, css=css)
     return HTML(string=html_content).write_pdf()
