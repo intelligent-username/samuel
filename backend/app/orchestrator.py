@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import uuid
@@ -58,6 +59,67 @@ class Orchestrator:
             logger.warning("ATS eval unexpected: %s", type(e).__name__)
             return ATSResult(score=0, details={"error": "evaluation failed"}, raw_report=None)
 
+    async def _load_context(self) -> tuple:
+        """Load generation, user, resume sections, repos, original PDF."""
+        generation = await self._get_generation()
+        result = await self.db.execute(select(User).where(User.id == generation.user_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise ValueError("User not found")
+        original_text = generation.resume.extracted_text if generation.resume else ""
+        sections = extract_sections(original_text)
+        repos = await self._get_repos(user)
+        original_pdf = None
+        if generation.resume and generation.resume.pdf_content:
+            original_pdf = generation.resume.pdf_content
+        else:
+            fallback_asset = Path(__file__).parent / "assets" / "resume.pdf"
+            if fallback_asset.exists():
+                original_pdf = fallback_asset.read_bytes()
+                if generation.resume and not generation.resume.pdf_content:
+                    generation.resume.pdf_content = original_pdf
+        return generation, user, original_text, sections, repos, original_pdf
+
+    async def _run_steps_1_3(self, generation: Generation, repos: list, sections: dict, out: dict) -> AsyncGenerator[dict, None]:
+        """Yield jd_parser, project_matcher, resume_writer events. Store results in out."""
+        yield {"event": "step-start", "data": json.dumps({"step": "jd_parser", "message": "Analyzing job description requirements..."})}
+        jd_requirements = await JDParserSkill().run(generation.job_description_text, self.llm, self.debug_dir)
+        num_keywords = len(getattr(jd_requirements, "keywords", []) or [])
+        yield {"event": "step-done", "data": json.dumps({"step": "jd_parser", "summary": f"Identified {num_keywords} key skills/requirements"})}
+        yield {"event": "step-start", "data": json.dumps({"step": "project_matcher", "message": "Matching repositories against requirements..."})}
+        repo_dicts = [{"name": r.name, "description": r.description, "stars": r.stars, "languages": r.languages, "topics": r.topics, "readme_text": r.readme_text} for r in repos]
+        jd_req_dict = jd_requirements.model_dump() if hasattr(jd_requirements, "model_dump") else jd_requirements
+        ranked_projects = await ProjectMatcherSkill().run(jd_req_dict, repo_dicts, self.llm, self.debug_dir)
+        yield {"event": "step-done", "data": json.dumps({"step": "project_matcher", "summary": f"Ranked {len(ranked_projects)} matching projects"})}
+        yield {"event": "step-start", "data": json.dumps({"step": "resume_writer", "message": "Rewriting Skills and Projects sections..."})}
+        writer = ResumeWriterSkill()
+        skills_raw = str(sections.get("skills") or "")
+        projects_raw = str(sections.get("projects") or "")
+        rewritten = await writer.run(skills_section=skills_raw, projects_section=projects_raw, jd_requirements=jd_req_dict, ranked_projects=ranked_projects, llm=self.llm, debug_dir=self.debug_dir)
+        new_skills = rewritten.get("skills", "").strip()
+        new_projects = rewritten.get("projects", "").strip()
+        original_text = generation.resume.extracted_text if generation.resume else ""
+        full_text = replace_sections_in_text(original_text, new_skills, new_projects)
+        yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": "Skills and Projects rewritten to match job profile"})}
+        out.update({"jd_requirements": jd_requirements, "jd_req_dict": jd_req_dict, "ranked_projects": ranked_projects, "writer": writer, "new_skills": new_skills, "new_projects": new_projects, "full_rewritten_text": full_text})
+
+    def _render_pdf_bytes(self, original_pdf: bytes | None, new_skills: str, new_projects: str, full_text: str) -> bytes | None:
+        """Rewrite original PDF in place, else render from text."""
+        if original_pdf:
+            try:
+                rewritten_md = f"## Skills\n{new_skills}\n\n## Projects\n{new_projects}"
+                return rewrite_pdf_layout(original_pdf, rewritten_md)
+            except Exception as e:
+                logger.warning("In-place PDF rewrite failed, keeping original: %s", type(e).__name__)
+                return original_pdf
+        try:
+            from app.services.pdf_renderer import render_resume_to_pdf
+
+            return render_resume_to_pdf(full_text)
+        except Exception as e:
+            logger.warning("PDF render failed: %s", type(e).__name__)
+            return None
+
     async def run(self) -> AsyncGenerator[dict, None]:
         """Yield SSE events for the 4-skill chain.
 
@@ -65,68 +127,19 @@ class Orchestrator:
         This method assumes status is pending/running; calling it for a
         completed generation would re-run LLM calls and overwrite DB.
         """
-        generation = await self._get_generation()
-        result = await self.db.execute(select(User).where(User.id == generation.user_id))
-        user = result.scalar_one_or_none()
-        if not user:
-            raise ValueError("User not found")
-
-        original_text = generation.resume.extracted_text if generation.resume else ""
-        sections = extract_sections(original_text)
-        repos = await self._get_repos(user)
-        
-        # Check for fallback sections and emit warning before resume_writer
+        generation, user, original_text, sections, repos, original_pdf = await self._load_context()
         is_fallback = bool(sections.get("_fallback")) or (not sections.get("skills") and not sections.get("projects"))
         if is_fallback:
             yield {"event": "warning", "data": json.dumps({"message": "Could not detect Skills/Projects sections — using full resume text"})}
-
         generation.status = "running"
         await self.db.commit()
-
-        # Step 1: JD Parser (sends ONLY the raw JD text)
-        yield {"event": "step-start", "data": json.dumps({"step": "jd_parser", "message": "Analyzing job description requirements..."})}
-        jd_parser = JDParserSkill()
-        jd_requirements = await jd_parser.run(generation.job_description_text, self.llm, self.debug_dir)
-        num_keywords = len(getattr(jd_requirements, "keywords", []) or [])
-        yield {"event": "step-done", "data": json.dumps({"step": "jd_parser", "summary": f"Identified {num_keywords} key skills/requirements"})}
-
-        # Step 2: Project Matcher (sends ONLY parsed JD requirements and compact repo summaries)
-        yield {"event": "step-start", "data": json.dumps({"step": "project_matcher", "message": "Matching repositories against requirements..."})}
-        matcher = ProjectMatcherSkill()
-        repo_dicts = [
-            {
-                "name": r.name,
-                "description": r.description,
-                "stars": r.stars,
-                "languages": r.languages,
-                "topics": r.topics,
-                "readme_text": r.readme_text,
-            }
-            for r in repos
-        ]
-        jd_req_dict = jd_requirements.model_dump() if hasattr(jd_requirements, "model_dump") else jd_requirements
-        ranked_projects = await matcher.run(jd_req_dict, repo_dicts, self.llm, self.debug_dir)
-        yield {"event": "step-done", "data": json.dumps({"step": "project_matcher", "summary": f"Ranked {len(ranked_projects)} matching projects"})}
-
-        # Step 3: Resume Writer (sends ONLY the extracted Skills & Projects text)
-        yield {"event": "step-start", "data": json.dumps({"step": "resume_writer", "message": "Rewriting Skills and Projects sections..."})}
-        writer = ResumeWriterSkill()
-        skills_raw = str(sections.get("skills") or "")
-        projects_raw = str(sections.get("projects") or "")
-        rewritten_sections = await writer.run(
-            skills_section=skills_raw,
-            projects_section=projects_raw,
-            jd_requirements=jd_req_dict,
-            ranked_projects=ranked_projects,
-            llm=self.llm,
-            debug_dir=self.debug_dir,
-        )
-        new_skills = rewritten_sections.get("skills", "").strip()
-        new_projects = rewritten_sections.get("projects", "").strip()
-        full_rewritten_text = replace_sections_in_text(original_text, new_skills, new_projects)
-        yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": "Skills and Projects rewritten to match job profile"})}
-
-        # Step 4: Deterministic Algorithmic ATS Evaluation
+        out: dict = {}
+        async for event in self._run_steps_1_3(generation, repos, sections, out):
+            yield event
+        jd_requirements = out["jd_requirements"]
+        new_skills = out["new_skills"]
+        new_projects = out["new_projects"]
+        full_rewritten_text = out["full_rewritten_text"]
         yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Running deterministic ATS compatibility audit..."})}
         ats_engine = ATS()
         ats_report = ats_engine.evaluate(
@@ -140,28 +153,7 @@ class Orchestrator:
         )
         ats_score = ats_report.get("score", 100)
         yield {"event": "step-done", "data": json.dumps({"step": "ats_checker", "summary": f"ATS Score: {ats_score}/100"})}
-
-        # In-place PDF rewrite preserving original fonts, icons, layout, and ruling lines
-        original_pdf = None
-        if generation.resume and generation.resume.pdf_content:
-            original_pdf = generation.resume.pdf_content
-        else:
-            fallback_asset = Path(__file__).parent / "assets" / "resume.pdf"
-            if fallback_asset.exists():
-                original_pdf = fallback_asset.read_bytes()
-                if generation.resume and not generation.resume.pdf_content:
-                    generation.resume.pdf_content = original_pdf
-
-        if original_pdf:
-            try:
-                rewritten_md = f"## Skills\n{new_skills}\n\n## Projects\n{new_projects}"
-                pdf_bytes = rewrite_pdf_layout(original_pdf, rewritten_md)
-            except Exception as e:
-                logging.getLogger(__name__).warning("In-place PDF rewrite failed, keeping original: %s", e)
-                pdf_bytes = original_pdf
-        else:
-            pdf_bytes = None
-
+        pdf_bytes = self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
         generation.rewritten_resume_text = full_rewritten_text
         generation.pdf_content = pdf_bytes
         generation.ats_report = ats_report
@@ -189,14 +181,7 @@ class Orchestrator:
         ats_max_iterations: int | None = None,
     ) -> AsyncGenerator[dict, None]:
         if ats_threshold is None or ats_threshold == 0:
-            generation = await self._get_generation()
-            result = await self.db.execute(select(User).where(User.id == generation.user_id))
-            user = result.scalar_one_or_none()
-            if not user:
-                raise ValueError("User not found")
-            original_text = generation.resume.extracted_text if generation.resume else ""
-            sections = extract_sections(original_text)
-            repos = await self._get_repos(user)
+            generation, user, original_text, sections, repos, original_pdf = await self._load_context()
             is_fallback = bool(sections.get("_fallback")) or (not sections.get("skills") and not sections.get("projects"))
             if is_fallback:
                 yield {"event": "warning", "data": json.dumps({"message": "Could not detect Skills/Projects sections — using full resume text"})}
@@ -205,57 +190,14 @@ class Orchestrator:
             generation.ats_max_iterations = ats_max_iterations or settings.ats_max_iterations
             generation.ats_exit_reason = "single_pass"
             await self.db.commit()
-
-            yield {"event": "step-start", "data": json.dumps({"step": "jd_parser", "message": "Analyzing job description requirements..."})}
-            jd_parser = JDParserSkill()
-            jd_requirements = await jd_parser.run(generation.job_description_text, self.llm, self.debug_dir)
-            num_keywords = len(getattr(jd_requirements, "keywords", []) or [])
-            yield {"event": "step-done", "data": json.dumps({"step": "jd_parser", "summary": f"Identified {num_keywords} key skills/requirements"})}
-
-            yield {"event": "step-start", "data": json.dumps({"step": "project_matcher", "message": "Matching repositories against requirements..."})}
-            matcher = ProjectMatcherSkill()
-            repo_dicts = [{"name": r.name, "description": r.description, "stars": r.stars, "languages": r.languages, "topics": r.topics, "readme_text": r.readme_text} for r in repos]
-            jd_req_dict = jd_requirements.model_dump() if hasattr(jd_requirements, "model_dump") else jd_requirements
-            ranked_projects = await matcher.run(jd_req_dict, repo_dicts, self.llm, self.debug_dir)
-            yield {"event": "step-done", "data": json.dumps({"step": "project_matcher", "summary": f"Ranked {len(ranked_projects)} matching projects"})}
-
-            yield {"event": "step-start", "data": json.dumps({"step": "resume_writer", "message": "Rewriting Skills and Projects sections..."})}
-            writer = ResumeWriterSkill()
-            skills_raw = str(sections.get("skills") or "")
-            projects_raw = str(sections.get("projects") or "")
-            rewritten_sections = await writer.run(skills_section=skills_raw, projects_section=projects_raw, jd_requirements=jd_req_dict, ranked_projects=ranked_projects, llm=self.llm, debug_dir=self.debug_dir)
-            new_skills = rewritten_sections.get("skills", "").strip()
-            new_projects = rewritten_sections.get("projects", "").strip()
-            full_rewritten_text = replace_sections_in_text(original_text, new_skills, new_projects)
-            yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": "Skills and Projects rewritten to match job profile"})}
-
+            out: dict = {}
+            async for event in self._run_steps_1_3(generation, repos, sections, out):
+                yield event
+            new_skills = out["new_skills"]
+            new_projects = out["new_projects"]
+            full_rewritten_text = out["full_rewritten_text"]
             yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Running deterministic ATS compatibility audit..."})}
-            original_pdf = None
-            if generation.resume and generation.resume.pdf_content:
-                original_pdf = generation.resume.pdf_content
-            else:
-                fallback_asset = Path(__file__).parent / "assets" / "resume.pdf"
-                if fallback_asset.exists():
-                    original_pdf = fallback_asset.read_bytes()
-                    if generation.resume and not generation.resume.pdf_content:
-                        generation.resume.pdf_content = original_pdf
-            pdf_bytes: bytes | None = None
-            if original_pdf:
-                try:
-                    rewritten_md = f"## Skills\n{new_skills}\n\n## Projects\n{new_projects}"
-                    pdf_bytes = rewrite_pdf_layout(original_pdf, rewritten_md)
-                except Exception as e:
-                    logger.warning("In-place PDF rewrite failed, keeping original: %s", type(e).__name__)
-                    pdf_bytes = original_pdf
-            else:
-                try:
-                    from app.services.pdf_renderer import render_resume_to_pdf
-
-                    pdf_bytes = render_resume_to_pdf(full_rewritten_text)
-                except Exception as e:
-                    logger.warning("PDF render failed: %s", type(e).__name__)
-                    pdf_bytes = None
-
+            pdf_bytes = self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
             ats_result = await self._evaluate_ats(pdf_bytes, full_rewritten_text, generation.job_description_text)
             ats_score = ats_result.score
             ats_report = {"score": ats_score, "details": ats_result.details, "raw_report": ats_result.raw_report}
@@ -274,14 +216,7 @@ class Orchestrator:
             yield {"event": "done", "data": json.dumps({"generation_id": str(self.generation_id), "ats_score": ats_score, "ats_scores": [ats_score], "exit_reason": "single_pass", "iterations": generation.iterations, "rewritten_resume": full_rewritten_text, "pdf_url": f"/generate/{self.generation_id}/download"})}
             return
 
-        generation = await self._get_generation()
-        result = await self.db.execute(select(User).where(User.id == generation.user_id))
-        user = result.scalar_one_or_none()
-        if not user:
-            raise ValueError("User not found")
-        original_text = generation.resume.extracted_text if generation.resume else ""
-        sections = extract_sections(original_text)
-        repos = await self._get_repos(user)
+        generation, user, original_text, sections, repos, original_pdf = await self._load_context()
         is_fallback = bool(sections.get("_fallback")) or (not sections.get("skills") and not sections.get("projects"))
         if is_fallback:
             yield {"event": "warning", "data": json.dumps({"message": "Could not detect Skills/Projects sections — using full resume text"})}
@@ -295,57 +230,18 @@ class Orchestrator:
         generation.ats_threshold = threshold
         generation.ats_max_iterations = max_iter
         await self.db.commit()
-
-        yield {"event": "step-start", "data": json.dumps({"step": "jd_parser", "message": "Analyzing job description requirements..."})}
-        jd_parser = JDParserSkill()
-        jd_requirements = await jd_parser.run(generation.job_description_text, self.llm, self.debug_dir)
-        num_keywords = len(getattr(jd_requirements, "keywords", []) or [])
-        yield {"event": "step-done", "data": json.dumps({"step": "jd_parser", "summary": f"Identified {num_keywords} key skills/requirements"})}
-
-        yield {"event": "step-start", "data": json.dumps({"step": "project_matcher", "message": "Matching repositories against requirements..."})}
-        matcher = ProjectMatcherSkill()
-        repo_dicts = [{"name": r.name, "description": r.description, "stars": r.stars, "languages": r.languages, "topics": r.topics, "readme_text": r.readme_text} for r in repos]
-        jd_req_dict = jd_requirements.model_dump() if hasattr(jd_requirements, "model_dump") else jd_requirements
-        ranked_projects = await matcher.run(jd_req_dict, repo_dicts, self.llm, self.debug_dir)
-        yield {"event": "step-done", "data": json.dumps({"step": "project_matcher", "summary": f"Ranked {len(ranked_projects)} matching projects"})}
-
-        yield {"event": "step-start", "data": json.dumps({"step": "resume_writer", "message": "Rewriting Skills and Projects sections..."})}
-        writer = ResumeWriterSkill()
-        skills_raw = str(sections.get("skills") or "")
-        projects_raw = str(sections.get("projects") or "")
-        rewritten_sections = await writer.run(skills_section=skills_raw, projects_section=projects_raw, jd_requirements=jd_req_dict, ranked_projects=ranked_projects, llm=self.llm, debug_dir=self.debug_dir)
-        new_skills = rewritten_sections.get("skills", "").strip()
-        new_projects = rewritten_sections.get("projects", "").strip()
-        full_rewritten_text = replace_sections_in_text(original_text, new_skills, new_projects)
-        yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": "Skills and Projects rewritten to match job profile"})}
-
+        out: dict = {}
+        async for event in self._run_steps_1_3(generation, repos, sections, out):
+            yield event
+        jd_requirements = out["jd_requirements"]
+        jd_req_dict = out["jd_req_dict"]
+        ranked_projects = out["ranked_projects"]
+        writer = out["writer"]
+        new_skills = out["new_skills"]
+        new_projects = out["new_projects"]
+        full_rewritten_text = out["full_rewritten_text"]
         yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Running deterministic ATS compatibility audit..."})}
-        original_pdf = None
-        if generation.resume and generation.resume.pdf_content:
-            original_pdf = generation.resume.pdf_content
-        else:
-            fallback_asset = Path(__file__).parent / "assets" / "resume.pdf"
-            if fallback_asset.exists():
-                original_pdf = fallback_asset.read_bytes()
-                if generation.resume and not generation.resume.pdf_content:
-                    generation.resume.pdf_content = original_pdf
-        pdf_bytes: bytes | None = None
-        if original_pdf:
-            try:
-                rewritten_md = f"## Skills\n{new_skills}\n\n## Projects\n{new_projects}"
-                pdf_bytes = rewrite_pdf_layout(original_pdf, rewritten_md)
-            except Exception as e:
-                logger.warning("In-place PDF rewrite failed: %s", type(e).__name__)
-                pdf_bytes = original_pdf
-        else:
-            try:
-                from app.services.pdf_renderer import render_resume_to_pdf
-
-                pdf_bytes = render_resume_to_pdf(full_rewritten_text)
-            except Exception as e:
-                logger.warning("PDF render failed: %s", type(e).__name__)
-                pdf_bytes = None
-
+        pdf_bytes = self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
         ats_result = await self._evaluate_ats(pdf_bytes, full_rewritten_text, generation.job_description_text)
         scores: list[int] = [ats_result.score]
         iterations_detail: list[dict] = [{"iteration": 1, "score": ats_result.score}]
@@ -385,21 +281,7 @@ class Orchestrator:
             new_projects = rewritten_sections.get("projects", "").strip() or new_projects
             full_rewritten_text = replace_sections_in_text(original_text, new_skills, new_projects)
             yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": f"Refined Skills/Projects (iteration {iteration})"})}
-            if original_pdf:
-                try:
-                    rewritten_md = f"## Skills\n{new_skills}\n\n## Projects\n{new_projects}"
-                    pdf_bytes = rewrite_pdf_layout(original_pdf, rewritten_md)
-                except Exception as e:
-                    logger.warning("PDF rewrite failed iteration %s: %s", iteration, type(e).__name__)
-                    pdf_bytes = original_pdf
-            else:
-                try:
-                    from app.services.pdf_renderer import render_resume_to_pdf
-
-                    pdf_bytes = render_resume_to_pdf(full_rewritten_text)
-                except Exception as e:
-                    logger.warning("PDF render failed iteration %s: %s", iteration, type(e).__name__)
-                    pdf_bytes = None
+            pdf_bytes = self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
             ats_result = await self._evaluate_ats(pdf_bytes, full_rewritten_text, generation.job_description_text)
             scores.append(ats_result.score)
             iterations_detail.append({"iteration": iteration, "score": ats_result.score})
