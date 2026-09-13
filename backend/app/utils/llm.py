@@ -194,18 +194,6 @@ class LLMClient:
         # If all single models failed, raise (Groq already tried via complete())
         raise RuntimeError("LLM request failed after 3 attempts (all Groq + OpenRouter free models)")
 
-    async def embed(self, text: str) -> list[float]:
-        resp = await self._client.post(
-            "/embeddings",
-            json={
-                "model": "openai/text-embedding-3-small",
-                "input": text,
-                "data_collection": "deny",
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()["data"][0]["embedding"]
-
     async def close(self):
         await self._client.aclose()
         if self._groq_client is not None:
