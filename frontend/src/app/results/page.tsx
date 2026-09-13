@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { redirectToHistory } from "@/lib/legacy-redirect";
 
 export default function RootResultsPage() {
-  redirect("/history");
+  redirectToHistory();
 }

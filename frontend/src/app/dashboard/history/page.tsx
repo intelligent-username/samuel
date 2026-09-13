@@ -1,7 +1,7 @@
-import { redirect } from "next/navigation";
+import { redirectToHistory } from "@/lib/legacy-redirect";
 
 export default function DashboardHistoryPage() {
-  redirect("/history");
+  redirectToHistory();
 }
 
-// legacy redirect — canonical route is /history (see audit 09)
+// legacy redirect to canonical route /history
