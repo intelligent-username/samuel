@@ -8,6 +8,10 @@ SKILLS_HEADERS = {
     "key skills", "skills & tools", "skills & abilities",
     "technologies", "technical proficiencies", "programming skills",
     "skills summary",
+    "tech stack", "technology stack", "technical stack", "stack",
+    "expertise", "areas of expertise", "core expertise",
+    "tooling", "tools",
+    "what i know",
 }
 
 PROJECTS_HEADERS = {
@@ -16,6 +20,7 @@ PROJECTS_HEADERS = {
     "side projects", "academic projects", "key projects",
     "open source", "open-source", "project experience",
     "notable projects", "recent projects",
+    "portfolio",
 }
 
 # Lag bounds (centralized per lag-08; no behavior change, same values)
@@ -35,11 +40,19 @@ JD_PERSIST_DEBOUNCE_MS = 500
 # Regex pattern matching any section boundary header line
 ANY_HEADER_RE = re.compile(
     r"^(?:"
-    r"experience|work\s+experience|employment|work\s+history|"
+    r"experience|work\s+experience|professional\s+experience|"
+    r"employment(?:\s+history)?|work\s+history|"
     r"education|certifications?|awards?|publications?|languages?|"
     r"summary|objective|about|contact|references?|"
-    r"skills?|technical\s+skills|technical\s+expertise|core\s+competencies|key\s+skills|"
-    r"projects?|personal\s+projects|selected\s+projects|side\s+projects|open[-\s]?source"
+    r"skills?|technical\s+skills|technical\s+expertise|"
+    r"core\s+(?:competencies|skills|expertise)|key\s+skills|"
+    r"skills\s*(?:&|and)\s*(?:tools|abilities)|technologies|"
+    r"technical\s+proficiencies|programming\s+skills|skills\s+summary|"
+    r"tech\s+stack|technology\s+stack|technical\s+stack|stack|"
+    r"expertise|areas\s+of\s+expertise|tooling|tools|what\s+i\s+know|"
+    r"projects?|personal\s+projects|selected\s+projects|side\s+projects|"
+    r"academic\s+projects|key\s+projects|notable\s+projects|"
+    r"recent\s+projects|project\s+experience|portfolio|open[-\s]?source"
     r")\s*:?\s*$",
     re.IGNORECASE,
 )

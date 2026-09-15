@@ -118,12 +118,18 @@ class GenerationResponse(BaseModel):
 
 
 class JDRequirements(BaseModel):
-    """Structured requirements extracted from a job description by the JD Parser skill."""
+    """Structured requirements extracted from a job description by the JD Parser skill.
+
+    hard_requirements, preferred_skills, keywords hold atomic lowercase tokens.
+    """
     hard_requirements: list[str]
     preferred_skills: list[str]
     seniority_level: str
     red_flags: list[str]
     keywords: list[str]
+    experience_requirements: list[str] = Field(default_factory=list)
+    education_requirements: list[str] = Field(default_factory=list)
+    aliases: dict[str, str] = Field(default_factory=dict)
 
     model_config = {"extra": "forbid"}
 

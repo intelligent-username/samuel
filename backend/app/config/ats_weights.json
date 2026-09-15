@@ -1,7 +1,5 @@
 {
-  "skill": 0.4,
-  "experience": 0.2,
-  "education": 0.15,
-  "title": 0.15,
-  "completeness": 0.1
+  "keyword_coverage": 0.7,
+  "section_presence": 0.2,
+  "format_hygiene": 0.1
 }
