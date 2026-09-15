@@ -13,7 +13,7 @@ DO:
 - Reorder projects so the most relevant ones appear first.
 - Rewrite project bullet points to emphasize technologies and outcomes that match the job.
 - Surface JD terminology by rewording and reordering existing content.
-- Infer a skill only when it is inferrable from a listed project bullet or listed experience. Each inferred skill must be supported by at least one concrete bullet or project already present (evidence-linking). Example: a Data Engineering internship may support inferring SQL, pandas, Python, or BI tools, but ONLY if a listed project or bullet supports it (mentions pipelines, queries, data analysis, dashboards, ETL, or equivalent work). If no supporting bullet or project exists, do not add the skill.
+- Infer a skill when inferrable from role title, experience line, project bullet, or ranked project. A bare role title counts as evidence (e.g. Data Engineering internship supports SQL, pandas, Python, BI even if no bullet lists tools). Only forbid the skill when no title, bullet, or project supports it.
 - Respect ATS feedback: prioritize listed missing keywords and warnings by surfacing matching evidence already in the resume.
 
 DO NOT:

@@ -2,7 +2,6 @@ import re
 
 ALIAS_MAP: dict[str, str] = {
     "k8s": "kubernetes",
-    "k8s.": "kubernetes",
     "kube": "kubernetes",
     "k8": "kubernetes",
     "postgres": "postgresql",
@@ -21,10 +20,8 @@ ALIAS_MAP: dict[str, str] = {
     "node": "node.js",
     "nodejs": "node.js",
     "tf": "terraform",
-    "gcp": "gcp",
     "google cloud": "gcp",
     "google cloud platform": "gcp",
-    "aws": "aws",
     "amazon web services": "aws",
     "azure cloud": "azure",
     "ml": "machine learning",
@@ -55,13 +52,18 @@ STOPWORDS: set[str] = {
     "experience", "experienced", "years", "year", "yrs", "yr", "months", "month", "degree", "background",
     "passion", "passionate", "opportunity", "opportunities", "role", "roles", "responsibility",
     "responsibilities", "qualification", "qualifications", "plus",
+    "using", "used", "use",
 }
+
+_SINGLE_OK: set[str] = {"r", "c"}
 
 _PHRASES: list[str] = sorted(
     [k for k in ALIAS_MAP if " " in k] + [v for v in ALIAS_MAP.values() if " " in v] + ["data engineering"],
     key=len,
     reverse=True,
 )
+
+_CHUNK_SPLIT_RE = re.compile(r"\s+and\s+|\s+or\s+|/|[&|;,]+")
 
 
 def resolve_alias(token: str) -> str:
@@ -102,6 +104,18 @@ def normalize_skill(s: str) -> str:
     return t
 
 
+def _is_numeric_noise(token: str) -> bool:
+    """True for pure numbers/versions with no letters (5+, 2026, 33.33). Keeps s3, route53, oauth2."""
+    t = token.strip().strip("+-.,%$").lower()
+    if not t:
+        return True
+    if re.fullmatch(r"\d+(\.\d+)*", t):
+        return True
+    if re.fullmatch(r"\d+(st|nd|rd|th)", t):
+        return True
+    return re.search(r"[a-z]", t) is None
+
+
 def _collect_phrases(cleaned: str, out: list[str], seen: set[str]) -> str:
     for phrase in _PHRASES:
         if phrase in cleaned:
@@ -113,19 +127,45 @@ def _collect_phrases(cleaned: str, out: list[str], seen: set[str]) -> str:
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
-def _append_token(part: str, out: list[str], seen: set[str]) -> None:
+def _add_token(part: str, out: list[str], seen: set[str]) -> None:
     token = part.strip().rstrip(".").strip()
     if not token or token in STOPWORDS:
         return
-    if token not in ALIAS_MAP and re.search(r"\d", token):
+    if _is_numeric_noise(token) and token not in ALIAS_MAP:
         return
-    if len(token) < 2 and token not in ALIAS_MAP:
+    if len(token) < 2 and token not in ALIAS_MAP and token not in _SINGLE_OK:
         return
     norm = normalize_skill(token)
-    if not norm or norm in STOPWORDS or norm in seen or len(norm) < 2:
+    if not norm or norm in STOPWORDS or norm in seen:
+        return
+    if len(norm) < 2 and norm not in _SINGLE_OK:
         return
     seen.add(norm)
     out.append(norm)
+
+
+def _emit_chunk(chunk: str, out: list[str], seen: set[str]) -> None:
+    words = [w.strip(".-").strip() for w in chunk.split(" ")]
+    words = [w for w in words if w and not _is_numeric_noise(w)]
+    words = [w for w in words if len(w) >= 2 or w in ALIAS_MAP or w in _SINGLE_OK]
+    while words and words[0] in STOPWORDS:
+        words.pop(0)
+    while words and words[-1] in STOPWORDS:
+        words.pop()
+    if not words:
+        return
+    whole = " ".join(words)
+    if whole in STOPWORDS:
+        return
+    canon = resolve_alias(whole)
+    if canon != whole:
+        _add_token(canon, out, seen)
+        return
+    if len(words) <= 3:
+        _add_token(whole, out, seen)
+        return
+    for w in words:
+        _add_token(w, out, seen)
 
 
 def normalize_list(items: list[str] | None) -> list[str]:
@@ -135,11 +175,17 @@ def normalize_list(items: list[str] | None) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
     for raw in items:
-        if not raw or not raw.strip():
+        if not raw or not str(raw).strip():
             continue
-        cleaned = re.sub(r"[^a-z0-9+#./\s-]", " ", raw.strip().lower())
+        cleaned = re.sub(r"[^a-z0-9+#./\s-]", " ", str(raw).strip().lower())
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        if not cleaned:
+            continue
+        cleaned = re.sub(r"\bci/cd\b", "cicd", cleaned)
         cleaned = _collect_phrases(cleaned, out, seen)
-        for part in cleaned.split(" "):
-            _append_token(part, out, seen)
+        if not cleaned:
+            continue
+        for chunk in _CHUNK_SPLIT_RE.split(cleaned):
+            if chunk.strip():
+                _emit_chunk(chunk, out, seen)
     return out

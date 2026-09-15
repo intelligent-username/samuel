@@ -34,7 +34,8 @@ def test_keyword_match_criterion_partial():
 
 
 def test_ats_class_evaluation():
-    engine = ATS()
+    # Pin single criterion: default ATS is 3-criteria weighted so legacy 67 would shift.
+    engine = ATS([KeywordMatchCriterion()])
     res = engine.evaluate(
         resume_text="Experienced in Python and C++.",
         context={

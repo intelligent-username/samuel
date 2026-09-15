@@ -20,7 +20,7 @@ def _gen():
     gen.resume = resume
     gen.job_description_text = "python docker job description long enough text"
     gen.ats_threshold = 80
-    gen.ats_max_iterations = 3
+    gen.ats_max_iterations = 5
     gen.ats_exit_reason = None
     gen.ats_scores = None
     gen.iterations = None
@@ -79,7 +79,7 @@ async def test_pdf_regen_each_iteration(monkeypatch):
     db.execute = AsyncMock()
     orch = Orchestrator(uuid.uuid4(), MagicMock(), db, ats_provider=Provider())
     orch.db = db
-    events = [e async for e in orch.run_with_ats_loop(ats_threshold=80, ats_max_iterations=3)]
+    events = [e async for e in orch.run_with_ats_loop(ats_threshold=80, ats_max_iterations=5)]
     assert len(rendered) == 3  # initial + 2 retries => 3 renders
     assert len(seen_pdfs) == 3
     assert fake_gen.pdf_content == seen_pdfs[-1]
@@ -94,7 +94,7 @@ async def test_atevaluation_error_graceful(monkeypatch):
     from app.skills.resume_writer import ResumeWriterSkill
 
     fake_gen = _gen()
-    fake_gen.ats_max_iterations = 3
+    fake_gen.ats_max_iterations = 5
     monkeypatch.setattr(Orchestrator, "_get_generation", AsyncMock(return_value=fake_gen))
     monkeypatch.setattr(Orchestrator, "_get_repos", AsyncMock(return_value=[]))
     mock_jd = MagicMock()
@@ -127,7 +127,7 @@ async def test_atevaluation_error_graceful(monkeypatch):
     db.execute = AsyncMock()
     orch = Orchestrator(uuid.uuid4(), MagicMock(), db, ats_provider=Flaky())
     orch.db = db
-    events = [e async for e in orch.run_with_ats_loop(ats_threshold=80, ats_max_iterations=3)]
+    events = [e async for e in orch.run_with_ats_loop(ats_threshold=80, ats_max_iterations=5)]
     # second evaluation should be score 0 due to ATEvaluationError handling
     evals = [e for e in events if e["event"] == "ats_evaluation"]
     assert len(evals) == 3
@@ -184,6 +184,6 @@ async def test_weasyprint_fallback(monkeypatch):
     db.execute = AsyncMock()
     orch = Orchestrator(uuid.uuid4(), MagicMock(), db, ats_provider=Simple())
     orch.db = db
-    events = [e async for e in orch.run_with_ats_loop(ats_threshold=80, ats_max_iterations=3)]
+    events = [e async for e in orch.run_with_ats_loop(ats_threshold=80, ats_max_iterations=5)]
     done = [e for e in events if e["event"] == "done"][0]
     assert json.loads(done["data"])["exit_reason"] == "threshold_met"

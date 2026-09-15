@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.constants import PROJECTS_HEADERS, SKILLS_HEADERS
 from app.utils.ats_normalize import normalize_skill, stem_token
 
 _DEFAULT_WEIGHTS: dict[str, float] = {
@@ -34,6 +35,11 @@ def _load_weights() -> dict[str, float]:
         if 0.0 <= val <= 1.0:
             weights[key] = val
     return weights
+
+
+def _headers_pattern(headers: set[str]) -> str:
+    ordered = sorted(headers, key=len, reverse=True)
+    return "(" + "|".join(re.escape(h) for h in ordered) + ")"
 
 
 def _exact_match(text_lower: str, kw_clean: str) -> bool:
@@ -217,9 +223,9 @@ class SectionPresenceCriterion(ATSCriterion):
     weight: float = 0.2
 
     _patterns: dict[str, str] = {
-        "skills": r"(skills?|tech stack|stack|expertise|tooling|what i know)",
-        "projects": r"(projects?|portfolio|selected work)",
-        "experience": r"(experience|employment|work history|professional experience)",
+        "skills": _headers_pattern(SKILLS_HEADERS),
+        "projects": _headers_pattern(PROJECTS_HEADERS),
+        "experience": r"(experience|work\s+experience|professional\s+experience|employment(?:\s+history)?|work\s+history)",
         "education": r"(education|academic|degree|university|college|school)",
     }
 

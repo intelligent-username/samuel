@@ -22,6 +22,7 @@ from app.services.ats_stagnation import should_early_break
 from app.skills.jd_parser import JDParserSkill
 from app.skills.project_matcher import ProjectMatcherSkill
 from app.skills.resume_writer import ResumeWriterSkill
+from app.utils.ats_normalize import normalize_list
 from app.utils.llm import LLMClient
 from app.services.pdf_extractor import extract_sections, replace_sections_in_text, rewrite_pdf_layout
 
@@ -38,14 +39,14 @@ def build_ats_context(jd_requirements: object, jd_text: str = "") -> ATSContext:
     if jd_requirements is None:
         return ATSContext(job_description_text=str(jd_text or ""))
     if isinstance(jd_requirements, dict):
-        keywords = _as_str_list(jd_requirements.get("keywords"))
-        hard = _as_str_list(jd_requirements.get("hard_requirements"))
-        preferred = _as_str_list(jd_requirements.get("preferred_skills"))
+        keywords = normalize_list(_as_str_list(jd_requirements.get("keywords")))
+        hard = normalize_list(_as_str_list(jd_requirements.get("hard_requirements")))
+        preferred = normalize_list(_as_str_list(jd_requirements.get("preferred_skills")))
         text = str(jd_requirements.get("job_description_text") or jd_text or "")
     else:
-        keywords = _as_str_list(getattr(jd_requirements, "keywords", []))
-        hard = _as_str_list(getattr(jd_requirements, "hard_requirements", []))
-        preferred = _as_str_list(getattr(jd_requirements, "preferred_skills", []))
+        keywords = normalize_list(_as_str_list(getattr(jd_requirements, "keywords", [])))
+        hard = normalize_list(_as_str_list(getattr(jd_requirements, "hard_requirements", [])))
+        preferred = normalize_list(_as_str_list(getattr(jd_requirements, "preferred_skills", [])))
         text = str(getattr(jd_requirements, "job_description_text", "") or jd_text or "")
     return ATSContext(keywords=keywords, hard_requirements=hard, preferred_skills=preferred, job_description_text=text)
 
