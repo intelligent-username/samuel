@@ -3,8 +3,31 @@ from __future__ import annotations
 import asyncio
 import json
 
+from app.ats import ATS, ATSContext
 from app.schemas.ats import ATSResult
 from app.services.ats_base import ATEvaluationError, ATSProvider
+from app.utils.ats_normalize import normalize_list
+
+
+def _build_context(job_description: str | None) -> ATSContext:
+    keywords = normalize_list([job_description] if job_description else [])
+    return ATSContext(keywords=keywords, job_description_text=job_description or "")
+
+
+async def _resolve_text(pdf_bytes: bytes, resume_text: str | None) -> str:
+    if resume_text and resume_text.strip():
+        return resume_text
+    if not pdf_bytes:
+        return resume_text or ""
+    try:
+        from app.services.pdf_extractor import extract_text_from_pdf
+
+        extracted = await asyncio.to_thread(extract_text_from_pdf, pdf_bytes)
+        if extracted and extracted.strip():
+            return extracted
+    except Exception:
+        pass
+    return resume_text or ""
 
 
 class ATSLLMAdapter(ATSProvider):
@@ -19,29 +42,10 @@ class ATSLLMAdapter(ATSProvider):
         resume_text: str | None = None,
     ) -> ATSResult:
         try:
-            text = resume_text
-            if (not text or not str(text).strip()) and pdf_bytes:
-                try:
-                    from app.services.pdf_extractor import extract_text_from_pdf
-
-                    extracted = await asyncio.to_thread(extract_text_from_pdf, pdf_bytes)
-                    if extracted and extracted.strip():
-                        text = extracted
-                    else:
-                        text = text or ""
-                except Exception:
-                    text = text or ""
-            if not text or not str(text).strip():
-                if not pdf_bytes and (not resume_text or not str(resume_text).strip()):
-                    return ATSResult(score=0, details={"error": "empty input"}, raw_report=None)
-                text = str(text or "")
-
-            keywords = [w.strip() for w in (job_description or "").split() if len(w.strip()) > 2][:20]
-
-            from app.services.ats import ATS
-
-            engine = ATS()
-            report = engine.evaluate(text, {"keywords": keywords, "job_description_text": job_description or ""})
+            text = await _resolve_text(pdf_bytes, resume_text)
+            if not text or not text.strip():
+                return ATSResult(score=0, details={"error": "empty input"}, raw_report=None)
+            report = ATS().evaluate(text, _build_context(job_description))
             score = int(report.get("score", 0))
             score = max(0, min(100, score))
             details = {
