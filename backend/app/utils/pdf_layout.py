@@ -1,3 +1,4 @@
+import difflib
 import re
 
 from app.constants import ANY_HEADER_RE
@@ -14,6 +15,16 @@ def normalize_header(line: str) -> str:
     """Normalize a header line: strip whitespace, trailing colons, collapse spaces, lowercase."""
     s = re.sub(r"\s+", " ", line.strip().rstrip(":").strip())
     return s.lower()
+
+
+def _header_match(norm: str, headers: set[str]) -> bool:
+    if norm in headers:
+        return True
+    if len(norm) < 40 and any(h in norm for h in headers):
+        return True
+    return any(
+        difflib.SequenceMatcher(None, norm, h).ratio() >= 0.85 for h in headers
+    )
 
 
 def _find_bullet(lines: list[dict], margin_x: float) -> tuple[str, float, float]:
@@ -85,7 +96,7 @@ def profile_section(
         norm = normalize_fn(ln["text"])
         if not norm:
             continue
-        if norm in headers or (len(norm) < 40 and any(h in norm for h in headers)):
+        if _header_match(norm, headers):
             header_idx = idx
             header_size = ln["max_size"]
             break

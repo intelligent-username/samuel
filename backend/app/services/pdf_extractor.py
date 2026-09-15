@@ -1,4 +1,5 @@
 import asyncio
+import difflib
 import re
 
 import fitz  # PyMuPDF
@@ -18,6 +19,27 @@ from app.utils.pdf_layout import (
 )
 
 _normalize_header = normalize_header
+
+
+def _strip_markdown(line: str) -> str:
+    return line.lstrip("#*").strip()
+
+
+def _matches_target(norm: str, targets: set[str]) -> bool:
+    if norm in targets:
+        return True
+    if len(norm) < 30 and any(h in norm for h in targets):
+        return True
+    return any(
+        difflib.SequenceMatcher(None, norm, h).ratio() >= 0.85 for h in targets
+    )
+
+
+def _is_any_header(stripped: str) -> bool:
+    if _ANY_HEADER.match(stripped):
+        return True
+    cleaned = _strip_markdown(stripped)
+    return cleaned != stripped and bool(_ANY_HEADER.match(cleaned))
 
 
 def extract_text_from_pdf(content: bytes) -> str:
@@ -118,11 +140,11 @@ def replace_sections_in_text(original_text: str, new_skills: str, new_projects: 
 
     for line in lines:
         stripped = line.strip()
-        norm = _normalize_header(stripped)
+        norm = _normalize_header(_strip_markdown(stripped))
 
-        is_skills_header = norm in SKILLS_HEADERS or (len(norm) < 30 and any(h in norm for h in SKILLS_HEADERS))
-        is_projects_header = norm in PROJECTS_HEADERS or (len(norm) < 30 and any(h in norm for h in PROJECTS_HEADERS))
-        is_other_header = bool(_ANY_HEADER.match(stripped)) and not is_skills_header and not is_projects_header
+        is_skills_header = _matches_target(norm, SKILLS_HEADERS)
+        is_projects_header = _matches_target(norm, PROJECTS_HEADERS)
+        is_other_header = _is_any_header(stripped) and not is_skills_header and not is_projects_header
 
         if is_skills_header:
             capturing_skills = True
@@ -195,12 +217,11 @@ def extract_sections(text: str) -> dict[str, str | bool]:
     projects_text = _extract_section(text, PROJECTS_HEADERS)
 
     if not skills_text and not projects_text:
-        fallback = text.strip()[:4000]
         return {
-            "skills": fallback,
+            "skills": "",
             "projects": "",
             "_fallback": True,
-            "_warning": "Could not detect Skills/Projects sections — using full resume text",
+            "_warning": "Could not detect Skills/Projects sections",
         }
 
     return {"skills": skills_text, "projects": projects_text}
@@ -214,15 +235,15 @@ def _extract_section(text: str, target_names: set[str]) -> str:
 
     for line in lines:
         stripped = line.strip()
-        normalized = _normalize_header(stripped)
+        normalized = _normalize_header(_strip_markdown(stripped))
 
-        if normalized in target_names:
+        if _matches_target(normalized, target_names):
             capturing = True
             result = []
             continue
 
         if capturing:
-            if _ANY_HEADER.match(stripped) or (stripped.isupper() and len(stripped) > 3 and len(stripped.split()) <= 4):
+            if _is_any_header(stripped) or (stripped.isupper() and len(stripped) > 3 and len(stripped.split()) <= 4):
                 break
             result.append(line)
 
