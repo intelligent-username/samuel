@@ -65,6 +65,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         await conn.run_sync(Base.metadata.create_all)
 
     # CHECKLIST: verify registry.get_default() returns provider_name == settings.ats_provider
+    # Unified wiring: keep "llm" name, ATSLLMAdapter delegates to unified ATS engine.
     try:
         from app.services.ats_registry import registry
         from app.services.ats_llm_adapter import ATSLLMAdapter

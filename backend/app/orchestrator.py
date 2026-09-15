@@ -15,7 +15,7 @@ from app.constants import ATS_MAX_ITERATIONS_CAP, ATS_MIN_ITERATIONS
 from app.models.generation import Generation
 from app.models.repository import Repository
 from app.models.user import User
-from app.ats import ATS
+from app.ats import ATS, ATSContext
 from app.schemas.ats import ATSResult
 from app.services.ats_base import ATEvaluationError, ATSProvider
 from app.services.ats_stagnation import should_early_break
@@ -26,6 +26,53 @@ from app.utils.llm import LLMClient
 from app.services.pdf_extractor import extract_sections, replace_sections_in_text, rewrite_pdf_layout
 
 logger = logging.getLogger(__name__)
+
+
+def _as_str_list(value: object) -> list[str]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [str(v).strip() for v in value if str(v).strip()]
+
+
+def build_ats_context(jd_requirements: object, jd_text: str = "") -> ATSContext:
+    if jd_requirements is None:
+        return ATSContext(job_description_text=str(jd_text or ""))
+    if isinstance(jd_requirements, dict):
+        keywords = _as_str_list(jd_requirements.get("keywords"))
+        hard = _as_str_list(jd_requirements.get("hard_requirements"))
+        preferred = _as_str_list(jd_requirements.get("preferred_skills"))
+        text = str(jd_requirements.get("job_description_text") or jd_text or "")
+    else:
+        keywords = _as_str_list(getattr(jd_requirements, "keywords", []))
+        hard = _as_str_list(getattr(jd_requirements, "hard_requirements", []))
+        preferred = _as_str_list(getattr(jd_requirements, "preferred_skills", []))
+        text = str(getattr(jd_requirements, "job_description_text", "") or jd_text or "")
+    return ATSContext(keywords=keywords, hard_requirements=hard, preferred_skills=preferred, job_description_text=text)
+
+
+def _report_to_result(report: dict) -> ATSResult:
+    score = max(0, min(100, int(report.get("score", 0))))
+    details = {
+        "issues": report.get("issues", []),
+        "warnings": report.get("warnings", []),
+        "missing_keywords": report.get("missing_keywords", []),
+        "breakdown": report.get("breakdown", {}),
+    }
+    return ATSResult(score=score, details=details, raw_report=json.dumps(report))
+
+
+def _loop_feedback(details: dict | None) -> tuple[list, list[str]]:
+    if not details:
+        return [], []
+    missing = details.get("missing_keywords") or []
+    if not missing:
+        breakdown = details.get("breakdown") or {}
+        kw = breakdown.get("keyword_coverage") or {}
+        missing = (kw.get("details") or {}).get("missing") or []
+    warnings = details.get("warnings") or []
+    issues = details.get("issues") or []
+    merged = list(warnings) + [w for w in issues if w not in warnings]
+    return list(missing), merged
 
 
 class Orchestrator:
@@ -46,13 +93,12 @@ class Orchestrator:
             except Exception:
                 self.ats_provider = None  # type: ignore[assignment]
 
-    async def _evaluate_ats(self, pdf_bytes: bytes | None, resume_text: str, jd_text: str) -> ATSResult:
+    async def _evaluate_ats(self, resume_text: str, jd_requirements: object, jd_text: str = "") -> ATSResult:
         try:
-            if self.ats_provider is None:
-                from app.services.ats_registry import registry
-
-                self.ats_provider = registry.get_default()
-            return await self.ats_provider.evaluate(pdf_bytes or b"", jd_text, resume_text)
+            ctx = build_ats_context(jd_requirements, jd_text)
+            if not resume_text or not resume_text.strip():
+                return ATSResult(score=0, details={"error": "empty input"}, raw_report=None)
+            return _report_to_result(ATS().evaluate(resume_text, ctx))
         except ATEvaluationError:
             logger.warning("ATS eval failed: %s", "ATEvaluationError")
             return ATSResult(score=0, details={"error": "evaluation failed"}, raw_report=None)
@@ -147,17 +193,9 @@ class Orchestrator:
         new_projects = out["new_projects"]
         full_rewritten_text = out["full_rewritten_text"]
         yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Running deterministic ATS compatibility audit..."})}
-        ats_engine = ATS()
-        ats_report = ats_engine.evaluate(
-            resume_text=full_rewritten_text,
-            context={
-                "keywords": getattr(jd_requirements, "keywords", []) or [],
-                "hard_requirements": getattr(jd_requirements, "hard_requirements", []) or [],
-                "preferred_skills": getattr(jd_requirements, "preferred_skills", []) or [],
-                "job_description_text": generation.job_description_text,
-            },
-        )
-        ats_score = ats_report.get("score", 100)
+        ats_result = await self._evaluate_ats(full_rewritten_text, jd_requirements, generation.job_description_text)
+        ats_score = ats_result.score
+        ats_report = {"score": ats_score, "details": ats_result.details, "raw_report": ats_result.raw_report}
         yield {"event": "step-done", "data": json.dumps({"step": "ats_checker", "summary": f"ATS Score: {ats_score}/100"})}
         pdf_bytes = await self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
         generation.rewritten_resume_text = full_rewritten_text
@@ -199,12 +237,13 @@ class Orchestrator:
             out: dict = {}
             async for event in self._run_steps_1_3(generation, repos, sections, out):
                 yield event
+            jd_requirements = out["jd_requirements"]
             new_skills = out["new_skills"]
             new_projects = out["new_projects"]
             full_rewritten_text = out["full_rewritten_text"]
             yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Running deterministic ATS compatibility audit..."})}
             pdf_bytes = await self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
-            ats_result = await self._evaluate_ats(pdf_bytes, full_rewritten_text, generation.job_description_text)
+            ats_result = await self._evaluate_ats(full_rewritten_text, jd_requirements, generation.job_description_text)
             ats_score = ats_result.score
             ats_report = {"score": ats_score, "details": ats_result.details, "raw_report": ats_result.raw_report}
             yield {"event": "step-done", "data": json.dumps({"step": "ats_checker", "summary": f"ATS Score: {ats_score}/100"})}
@@ -248,7 +287,7 @@ class Orchestrator:
         full_rewritten_text = out["full_rewritten_text"]
         yield {"event": "step-start", "data": json.dumps({"step": "ats_checker", "message": "Running deterministic ATS compatibility audit..."})}
         pdf_bytes = await self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
-        ats_result = await self._evaluate_ats(pdf_bytes, full_rewritten_text, generation.job_description_text)
+        ats_result = await self._evaluate_ats(full_rewritten_text, jd_requirements, generation.job_description_text)
         scores: list[int] = [ats_result.score]
         iterations_detail: list[dict] = [{"iteration": 1, "score": ats_result.score}]
         yield {"event": "step-done", "data": json.dumps({"step": "ats_checker", "summary": f"ATS Score: {ats_result.score}/100"})}
@@ -275,11 +314,7 @@ class Orchestrator:
                 yield {"event": "ats_stagnation", "data": json.dumps({"window": settings.ats_stagnation_window, "min_gain": settings.ats_min_gain, "scores_slice": scores[-(settings.ats_stagnation_window + 1):]})}
                 generation.ats_exit_reason = "stagnation"
                 break
-            missing = []
-            warnings: list[str] = []
-            if ats_result.details:
-                missing = ats_result.details.get("missing_keywords") or ats_result.details.get("missing_required") or []
-                warnings = ats_result.details.get("warnings") or ats_result.details.get("issues") or []
+            missing, warnings = _loop_feedback(ats_result.details)
             feedback = f"ATS score {scores[-1]}/{threshold}; missing keywords: {', '.join(str(m) for m in missing[:10]) if missing else 'none'}; warnings: {'; '.join(str(w) for w in warnings[:5]) if warnings else 'none'}"
             yield {"event": "step-start", "data": json.dumps({"step": "resume_writer", "message": f"Refining resume (iteration {iteration}/{max_iter})..."})}
             rewritten_sections = await writer.run(skills_section=new_skills, projects_section=new_projects, jd_requirements=jd_req_dict, ranked_projects=ranked_projects, llm=self.llm, debug_dir=self.debug_dir, ats_feedback=feedback)
@@ -288,7 +323,7 @@ class Orchestrator:
             full_rewritten_text = replace_sections_in_text(original_text, new_skills, new_projects)
             yield {"event": "step-done", "data": json.dumps({"step": "resume_writer", "summary": f"Refined Skills/Projects (iteration {iteration})"})}
             pdf_bytes = await self._render_pdf_bytes(original_pdf, new_skills, new_projects, full_rewritten_text)
-            ats_result = await self._evaluate_ats(pdf_bytes, full_rewritten_text, generation.job_description_text)
+            ats_result = await self._evaluate_ats(full_rewritten_text, jd_requirements, generation.job_description_text)
             scores.append(ats_result.score)
             iterations_detail.append({"iteration": iteration, "score": ats_result.score})
             will_retry_inner = ats_result.score < threshold and iteration < max_iter

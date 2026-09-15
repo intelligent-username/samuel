@@ -31,6 +31,15 @@ class ATSRegistry:
         fallback = self.get("llm")
         if fallback is not None:
             return fallback
+        if str(settings.ats_provider).strip().lower() == "llm":
+            try:
+                from app.services.ats_llm_adapter import ATSLLMAdapter
+
+                unified = ATSLLMAdapter()
+                self.register("llm", unified)
+                return unified
+            except Exception:
+                pass
         raise RuntimeError("no ATS provider registered")
 
     def list_providers(self) -> list[str]:
